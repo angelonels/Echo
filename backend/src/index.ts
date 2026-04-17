@@ -22,8 +22,11 @@ app.get('/', (req, res) => {
   res.send('Echo Walking Skeleton API is running');
 });
 
+import { postgresSaver } from './agent';
+
 const startServer = async () => {
   await initDb();
+  await postgresSaver.setup();
   app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
   });
