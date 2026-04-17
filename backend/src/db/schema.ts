@@ -1,4 +1,10 @@
-import { pgTable, uuid, text, timestamp, vector } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, timestamp, vector, customType } from 'drizzle-orm/pg-core';
+
+const tsvectorType = customType<{ data: string }>({
+  dataType() {
+    return 'tsvector';
+  },
+});
 
 export const documents = pgTable('documents', {
   id: uuid('id').defaultRandom().primaryKey(),
@@ -10,5 +16,6 @@ export const knowledgeChunks = pgTable('knowledge_chunks', {
   id: uuid('id').defaultRandom().primaryKey(),
   docId: uuid('doc_id').references(() => documents.id, { onDelete: 'cascade' }).notNull(),
   content: text('content').notNull(),
+  searchVector: tsvectorType('search_vector'),
   embedding: vector('embedding', { dimensions: 1024 }),
 });

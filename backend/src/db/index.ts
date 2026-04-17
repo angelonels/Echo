@@ -19,6 +19,7 @@ export const initDb = async () => {
   const client = await pool.connect();
   try {
     await client.query('CREATE EXTENSION IF NOT EXISTS vector;');
+    await client.query('CREATE EXTENSION IF NOT EXISTS pg_trgm;');
     
     await client.query(`
       CREATE TABLE IF NOT EXISTS documents (
@@ -28,17 +29,21 @@ export const initDb = async () => {
       );
     `);
 
-    await client.query(`DROP TABLE IF EXISTS knowledge_chunks CASCADE;`);
+
     
     await client.query(`
       CREATE TABLE IF NOT EXISTS knowledge_chunks (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         doc_id UUID REFERENCES documents(id) ON DELETE CASCADE,
         content TEXT NOT NULL,
-        embedding vector(1024)
+        embedding vector(1024),
+        search_vector tsvector GENERATED ALWAYS AS (to_tsvector('english', content)) STORED
       );
     `);
-    console.log('Database initialized successfully with Drizzle underlying tables.');
+
+    await client.query(`CREATE INDEX IF NOT EXISTS knowledge_chunks_search_idx ON knowledge_chunks USING GIN (search_vector);`);
+
+    console.log('Database initialized successfully with Drizzle underlying tables and Hybrid Search Indices.');
   } catch (err) {
     console.error('Error initializing database:', err);
   } finally {
