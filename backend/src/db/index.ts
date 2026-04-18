@@ -22,6 +22,29 @@ export const initDb = async () => {
     await client.query('CREATE EXTENSION IF NOT EXISTS pg_trgm;');
     
     await client.query(`
+      CREATE TABLE IF NOT EXISTS analytics_logs (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          session_id TEXT NOT NULL,
+          user_query TEXT NOT NULL,
+          agent_response TEXT NOT NULL,
+          created_at TIMESTAMPTZ DEFAULT NOW(),
+          processed BOOLEAN DEFAULT FALSE
+      );
+      
+      CREATE TABLE IF NOT EXISTS mapped_summaries (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          time_window TIMESTAMPTZ NOT NULL,
+          friction_data JSONB NOT NULL,
+          created_at TIMESTAMPTZ DEFAULT NOW()
+      );
+      
+      CREATE TABLE IF NOT EXISTS daily_insights (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          report_date DATE UNIQUE NOT NULL,
+          top_issues JSONB NOT NULL,
+          avg_sentiment FLOAT
+      );
+      
       CREATE TABLE IF NOT EXISTS documents (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         filename TEXT NOT NULL,
