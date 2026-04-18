@@ -1,6 +1,7 @@
 import express from 'express';
 import { z } from 'zod';
 import { agentWorkflow, chatModel } from '../agent';
+import { analyticsQueue } from '../workers/workerSetup';
 
 const router = express.Router();
 
@@ -77,14 +78,24 @@ router.post('/', async (req, res) => {
     res.write(`data: ${JSON.stringify({ status: 'generating' })}\n\n`);
 
     const resultStream = await chatModel.stream(prompt);
+    let fullTextResponse = "";
     for await (const c of resultStream) {
       const text = c.content as string;
       if (text) {
+        fullTextResponse += text;
         res.write(`data: ${JSON.stringify({ text })}\n\n`);
       }
     }
     
     res.write('data: [DONE]\n\n');
+    
+    // Fire and forget - do NOT await this in the HTTP cycle
+    analyticsQueue.add('log-chat', { 
+        sessionId: threadId, 
+        query: query, 
+        response: fullTextResponse 
+    }).catch(err => console.error('Failed to trigger analytics queue:', err));
+
     res.end();
 
   } catch (err) {
