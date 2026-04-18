@@ -1,45 +1,13 @@
 import express from 'express';
 import { z } from 'zod';
-import { BedrockEmbeddings, ChatBedrockConverse } from '@langchain/aws';
-import { PromptTemplate } from '@langchain/core/prompts';
-import { db } from '../db/index';
-import { knowledgeChunks } from '../db/schema';
-import { cosineDistance, desc, sql } from 'drizzle-orm';
+import { agentWorkflow, chatModel } from '../agent';
 
 const router = express.Router();
 
 const ChatRequestSchema = z.object({
   query: z.string().min(1, 'Query must not be empty'),
+  threadId: z.string().min(1, 'Thread ID is required for memory persistence'),
 });
-
-const embeddings = new BedrockEmbeddings({
-  region: process.env.AWS_DEFAULT_REGION || 'ap-south-1',
-  credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
-  },
-  model: 'amazon.titan-embed-text-v2:0', 
-});
-
-const chatModel = new ChatBedrockConverse({
-  region: process.env.AWS_DEFAULT_REGION || 'ap-south-1',
-  credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
-  },
-  // Replaced Claude with Open Source Llama 3 on Bedrock as requested
-  model: 'meta.llama3-8b-instruct-v1:0', 
-});
-
-const RAG_TEMPLATE = `
-You are Echo. Answer the user's question using ONLY the provided context. If the context does not contain the answer, say "I don't know". 
-
-CONTEXT:
-{context}
-
-QUESTION:
-{question}
-`;
 
 router.post('/', async (req, res) => {
   try {
@@ -47,39 +15,75 @@ router.post('/', async (req, res) => {
     if (!parsed.success) {
       return res.status(400).json({ error: parsed.error.format() });
     }
-    const { query } = parsed.data;
+    const { query, threadId } = parsed.data;
 
-    // 1. Embed user query
-    const queryVector = await embeddings.embedQuery(query);
-
-    // 2. Retrieve Top 5 relevant chunks using Drizzle ORM pgvector native cosineDistance
-    const searchRes = await db
-      .select({ content: knowledgeChunks.content })
-      .from(knowledgeChunks)
-      .orderBy(cosineDistance(knowledgeChunks.embedding, queryVector))
-      .limit(5);
-
-    const contextText = searchRes.map(row => row.content).join('\n\n');
-
-    // 3. Setup Langchain Chat
-    const prompt = PromptTemplate.fromTemplate(RAG_TEMPLATE);
-    const formattedPrompt = await prompt.format({
-      context: contextText,
-      question: query,
-    });
-
-    // 4. Stream response to Client using SSE
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
 
-    const stream = await chatModel.stream(formattedPrompt);
+    // 1. Execute LangGraph Orchestrator
+    const stream = await agentWorkflow.stream(
+      { 
+        originalQuery: query,
+        messages: [{ role: 'user', content: query } as any] 
+      },
+      { configurable: { thread_id: threadId } }
+    );
+    
+    let finalState: any = null;
+    let fallbackTriggered = false;
+    let loopCount = 0;
 
     for await (const chunk of stream) {
-      if (chunk.content) {
-        res.write(`data: ${JSON.stringify({ text: chunk.content })}\n\n`);
+      res.write(`data: ${JSON.stringify({ debug_chunk_key: Object.keys(chunk) })}\n\n`);
+      if (chunk.expand) {
+        loopCount++;
+        res.write(`data: ${JSON.stringify({ status: 'expanding', queries: chunk.expand.searchQueries })}\n\n`);
+      }
+      if (chunk.retrieve) {
+        const docs = chunk.retrieve.retrievedDocs.map((d: any) => ({ 
+          content: d.content.substring(0, 50) + '...', 
+          score: Number(d.rrf_score).toFixed(3) 
+        }));
+        res.write(`data: ${JSON.stringify({ status: 'retrieved', docs })}\n\n`);
+      }
+      if (chunk.grade) {
+        res.write(`data: ${JSON.stringify({ status: 'grading', passed: chunk.grade.contextGraded })}\n\n`);
+        finalState = Object.values(chunk)[0];
+        if (!chunk.grade.contextGraded && loopCount >= 2) {
+          fallbackTriggered = true;
+          break; // Force break out of infinite LangGraph generator
+        }
+      }
+      finalState = Object.values(chunk)[0];
+    }
+
+    // 2. State Machine Finished, Generate Grounded Response directly to stream
+    let prompt = '';
+    const docs = finalState?.retrievedDocs || [];
+    const ctx = docs.map((d: any) => d.content).join('\\n---\\n');
+    
+    if (fallbackTriggered || finalState?.contextGraded === false) {
+      prompt = `The user asked: ${query}. Our retrieval database does not contain this information. 
+      State explicitly that you cannot find this in the documentation and DO NOT hallucinate an answer.`;
+    } else {
+      prompt = `You are Echo. Answer using ONLY the provided context. If the context is empty, apologize and admit you do not know.
+      Context:
+      ${ctx}
+      Question:
+      ${query}`;
+    }
+
+    res.write(`data: ${JSON.stringify({ status: 'generating' })}\n\n`);
+
+    const resultStream = await chatModel.stream(prompt);
+    for await (const c of resultStream) {
+      const text = c.content as string;
+      if (text) {
+        res.write(`data: ${JSON.stringify({ text })}\n\n`);
       }
     }
+    
     res.write('data: [DONE]\n\n');
     res.end();
 
@@ -87,6 +91,8 @@ router.post('/', async (req, res) => {
     console.error('Chat Error:', err);
     if (!res.headersSent) {
       res.status(500).json({ error: 'Internal server error during chat processing' });
+    } else {
+      res.end();
     }
   }
 });
