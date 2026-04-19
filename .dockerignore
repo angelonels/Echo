@@ -1,0 +1,15 @@
+node_modules
+npm-debug.log
+frontend/.next
+frontend/node_modules
+backend/api/node_modules
+backend/worker/node_modules
+packages/shared/node_modules
+packages/widget/node_modules
+**/dist
+.git
+.DS_Store
+.env
+.env.*
+uploads
+postgres_data

@@ -56,7 +56,7 @@ export function XRayTracePanel({ xrayState }: XRayTracePanelProps) {
                   <span>1. Query Expansion</span>
                 </div>
                 {xrayState.queries ? (
-                  <Accordion type="single" collapsible className="w-full">
+                  <Accordion className="w-full">
                     <AccordionItem value="queries" className="border-zinc-800/50 bg-zinc-900/40 rounded-xl overflow-hidden px-1">
                       <AccordionTrigger className="text-sm text-zinc-300 hover:no-underline py-3 px-3 hover:bg-zinc-800/30 rounded-lg transition-colors">
                         View Parallax Queries ({xrayState.queries.length})

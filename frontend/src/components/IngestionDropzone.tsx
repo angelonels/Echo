@@ -1,7 +1,8 @@
 import React, { useState, useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { UploadCloud, FileText, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
-import { Progress } from '@/components/ui/progress';
+import { Progress, ProgressIndicator, ProgressTrack } from '@/components/ui/progress';
+import { buildApiUrl } from '@/lib/api';
 
 export function IngestionDropzone() {
   const [file, setFile] = useState<File | null>(null);
@@ -40,7 +41,7 @@ export function IngestionDropzone() {
         setProgress(p => Math.min(p + 15, 85));
       }, 500);
 
-      const response = await fetch('http://localhost:3001/upload', {
+      const response = await fetch(buildApiUrl('upload'), {
         method: 'POST',
         body: formData,
       });
@@ -98,7 +99,11 @@ export function IngestionDropzone() {
                 <span>Chunking & Embedding</span>
                 <span>{progress}%</span>
               </div>
-              <Progress value={progress} className="h-2 bg-zinc-800" indicatorclassname="bg-indigo-500 transition-all duration-500 ease-out" />
+              <Progress value={progress} className="w-full">
+                <ProgressTrack className="h-2 bg-zinc-800">
+                  <ProgressIndicator className="bg-indigo-500 transition-all duration-500 ease-out" />
+                </ProgressTrack>
+              </Progress>
             </div>
           </div>
         ) : uploadState === 'success' ? (

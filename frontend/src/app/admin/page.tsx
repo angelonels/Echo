@@ -4,6 +4,7 @@ import { AnalyticsDashboard } from "@/components/analytics/AnalyticsDashboard";
 import { LineChart, LayoutDashboard, ArrowLeft, RefreshCw } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
+import { buildApiUrl } from "@/lib/api";
 
 export default function AdminPage() {
   const [triggering, setTriggering] = useState<boolean>(false);
@@ -11,7 +12,7 @@ export default function AdminPage() {
   const firePipeline = async () => {
      setTriggering(true);
      try {
-       await fetch('http://localhost:3001/analytics/trigger', {
+       await fetch(buildApiUrl('analyticsTrigger'), {
            method: 'POST',
            headers: { 'Content-Type': 'application/json' },
            body: JSON.stringify({ step: 'full' })

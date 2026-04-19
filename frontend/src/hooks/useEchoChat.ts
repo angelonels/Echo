@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
+import { buildApiUrl } from '@/lib/api';
 
 export type EchoMessage = {
   role: 'user' | 'bot';
@@ -31,7 +32,7 @@ export function useEchoChat(threadId: string) {
     setXrayState({ status: 'initializing' });
 
     try {
-      const response = await fetch('http://localhost:3001/chat', {
+      const response = await fetch(buildApiUrl('chat'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ query, threadId }),

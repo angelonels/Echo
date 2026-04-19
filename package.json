@@ -1,0 +1,27 @@
+{
+  "name": "echo-foundation",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "npm@10.9.4",
+  "workspaces": [
+    "frontend",
+    "backend/api",
+    "backend/worker",
+    "packages/shared",
+    "packages/widget"
+  ],
+  "scripts": {
+    "build": "npm run build -w @echo/shared && npm run build -w @echo/widget && npm run build -w @echo/api && npm run build -w @echo/worker && npm run build -w @echo/frontend",
+    "dev": "concurrently -n shared,api,worker,frontend -c cyan,green,yellow,magenta \"npm:dev -w @echo/shared\" \"npm:dev -w @echo/api\" \"npm:dev -w @echo/worker\" \"npm:dev -w @echo/frontend\"",
+    "dev:frontend": "npm run dev -w @echo/frontend",
+    "dev:api": "npm run dev -w @echo/api",
+    "dev:worker": "npm run dev -w @echo/worker",
+    "test": "npm run test --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "clean": "find . -type d \\( -name node_modules -o -name dist -o -name .next \\) -prune -exec rm -rf '{}' +"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1",
+    "typescript": "^5.9.3"
+  }
+}

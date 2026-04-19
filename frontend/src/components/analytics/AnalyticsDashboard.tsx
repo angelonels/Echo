@@ -5,11 +5,12 @@ import { VolumeStatCards } from './VolumeStatCards';
 import { FrictionBarList } from './FrictionBarList';
 import { SentimentAreaChart } from './SentimentAreaChart';
 import { Loader2 } from 'lucide-react';
+import { buildApiUrl } from '@/lib/api';
 
 const fetcher = (url: string) => fetch(url).then(res => res.json());
 
 export function AnalyticsDashboard() {
-  const { data, error, isLoading } = useSWR('http://localhost:3001/analytics/daily', fetcher, {
+  const { data, error, isLoading } = useSWR(buildApiUrl('analyticsDaily'), fetcher, {
     refreshInterval: 60000 // Refresh every minute
   });
 
