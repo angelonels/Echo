@@ -1,13 +1,15 @@
-# Echo Foundation
+# Echo
 
-This repository is now organized as an `npm` workspaces monorepo aligned to the target system design:
+This repository is organized as an `npm` workspaces monorepo aligned to the Echo system design:
 
-- `frontend/`: Next.js admin and playground UI
+- `frontend/`: Next.js landing page, auth flow, and admin product UI
 - `backend/api/`: Express HTTP API
 - `backend/worker/`: BullMQ worker process
 - `packages/shared/`: shared routes, DTOs, Zod schemas, enums, and constants
-- `packages/widget/`: embeddable widget package scaffold
-- `docs/`: architecture and delivery documentation
+- `packages/widget/`: embeddable React widget package
+- `docs/`: architecture, deployment, integration, and course-support documentation
+
+See `docs/README.md` for the documentation index.
 
 ## Prerequisites
 

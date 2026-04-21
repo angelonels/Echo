@@ -1,16 +1,9 @@
-export type EchoWidgetConfig = {
-  apiBaseUrl: string;
-  agentKey: string;
-  mountSelector: string;
-};
-
-export function createEchoWidget(config: EchoWidgetConfig) {
-  return {
-    mount() {
-      return {
-        mounted: true,
-        ...config,
-      };
-    },
-  };
-}
+export { EchoWidget } from "./EchoWidget";
+export type {
+  EchoWidgetMessage,
+  EchoWidgetProps,
+  EchoWidgetTheme,
+  WidgetChatRequest,
+  WidgetChatResponse,
+  WidgetConfigResponse,
+} from "./types";
