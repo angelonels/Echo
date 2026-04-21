@@ -44,6 +44,17 @@ export function expandQueries(baseQuery: string): string[] {
     queries.add(`${normalized} guide`);
   }
 
+  if (lowered.includes("password") || lowered.includes("reset")) {
+    queries.add("password reset")
+    queries.add("reset password")
+    queries.add("login reset link")
+  }
+
+  if (lowered.includes("refund")) {
+    queries.add("refund policy")
+    queries.add("return policy")
+  }
+
   const tokens = normalized
     .split(/\s+/)
     .filter((token) => token.length > 3)
@@ -109,7 +120,15 @@ export function pickStrategy(
   confidence: number,
   resultCount: number,
 ): RetrievalStrategy {
-  if (confidence < ROUTING_THRESHOLDS.fallbackMinConfidence || resultCount === 0) {
+  if (resultCount === 0) {
+    return "FALLBACK";
+  }
+
+  if (classification.requiresBroaderSearch) {
+    return "MULTI_QUERY";
+  }
+
+  if (confidence < ROUTING_THRESHOLDS.fallbackMinConfidence) {
     return "FALLBACK";
   }
 

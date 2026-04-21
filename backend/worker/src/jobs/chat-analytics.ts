@@ -1,29 +1,48 @@
 import { queueNames } from "@echo/shared";
-import { db } from "../lib/db.js";
-import { analyticsLogs } from "../lib/schema.js";
 import { createQueueWorker } from "../lib/queues.js";
-import { logger } from "../lib/logger.js";
+import { ChatAnalyticsLogService } from "../services/chat-analytics-log-service.js";
+
+const chatAnalyticsLogService = new ChatAnalyticsLogService();
 
 export const chatAnalyticsWorker = createQueueWorker(queueNames.analytics, async (job) => {
   if (job.name !== "log-chat") {
     return;
   }
 
-  const { sessionId, query, response } = job.data as {
+  const {
+    companyId,
+    agentId,
+    conversationId,
+    source,
+    sessionId,
+    query,
+    response,
+    strategy,
+    confidence,
+    fallbackUsed,
+  } = job.data as {
+    companyId?: string;
+    agentId?: string;
+    conversationId?: string;
+    source?: string;
     sessionId: string;
     query: string;
     response: string;
+    strategy?: string;
+    confidence?: number;
+    fallbackUsed?: boolean;
   };
 
-  try {
-    await db.insert(analyticsLogs).values({
-      sessionId,
-      userQuery: query,
-      agentResponse: response,
-    });
-
-    logger.info({ sessionId }, "Stored chat analytics log");
-  } catch (error) {
-    logger.error({ error, sessionId }, "Failed to persist chat analytics log");
-  }
+  await chatAnalyticsLogService.store({
+    companyId,
+    agentId,
+    conversationId,
+    source,
+    sessionId,
+    query,
+    response,
+    strategy,
+    confidence,
+    fallbackUsed,
+  });
 });

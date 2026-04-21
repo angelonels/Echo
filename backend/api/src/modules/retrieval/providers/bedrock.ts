@@ -36,12 +36,34 @@ function buildFallbackAnswer(prompt: string): string {
     return "I do not have enough context from the uploaded documents to answer that safely.";
   }
 
+  const queryTerms = question
+    .toLowerCase()
+    .split(/\W+/)
+    .filter((term) => term.length > 2)
+
   const snippets = context
     .split(/\n---\n|\n\n---\n\n/)
     .map((chunk) => chunk.trim())
     .filter(Boolean)
     .slice(0, 2)
     .map((chunk) => chunk.replace(/^Context \d+ \[[^\]]+\]\n/, ""))
+    .flatMap((chunk) =>
+      chunk
+        .split(/(?<=[.!?])\s+/)
+        .map((sentence) => sentence.trim())
+        .filter(Boolean),
+    )
+    .map((sentence) => ({
+      sentence,
+      score: queryTerms.reduce(
+        (total, term) => total + (sentence.toLowerCase().includes(term) ? 1 : 0),
+        0,
+      ),
+    }))
+    .sort((left, right) => right.score - left.score)
+    .filter((entry, index) => entry.score > 0 || index === 0)
+    .slice(0, 2)
+    .map((entry) => entry.sentence)
     .join(" ");
 
   return `Based on the uploaded documents, here is the best supported answer to "${question}": ${snippets}`.trim();

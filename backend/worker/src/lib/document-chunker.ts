@@ -6,21 +6,23 @@ const splitter = new RecursiveCharacterTextSplitter({
   separators: ["\n## ", "\n### ", "\n\n", ". ", "\n", " "],
 });
 
-export async function chunkDocument(text: string): Promise<Array<{
-  content: string;
-  chunkIndex: number;
-  metadata: Record<string, unknown>;
-}>> {
-  const normalized = text.replace(/\r\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
-  const docs = await splitter.createDocuments([normalized]);
+export class DocumentChunker {
+  async chunk(text: string): Promise<Array<{
+    content: string;
+    chunkIndex: number;
+    metadata: Record<string, unknown>;
+  }>> {
+    const normalized = text.replace(/\r\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+    const docs = await splitter.createDocuments([normalized]);
 
-  return docs
-    .map((doc, index) => ({
-      content: doc.pageContent.trim(),
-      chunkIndex: index,
-      metadata: {
-        sourceMetadata: doc.metadata,
-      },
-    }))
-    .filter((chunk) => chunk.content.length > 0);
+    return docs
+      .map((doc, index) => ({
+        content: doc.pageContent.trim(),
+        chunkIndex: index,
+        metadata: {
+          sourceMetadata: doc.metadata,
+        },
+      }))
+      .filter((chunk) => chunk.content.length > 0);
+  }
 }

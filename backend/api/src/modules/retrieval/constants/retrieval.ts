@@ -11,5 +11,5 @@ export const ROUTING_THRESHOLDS = {
   naiveMinConfidence: 0.72,
   multiQueryMinConfidence: 0.12,
   fallbackMinConfidence: 0.1,
-  minAnswerConfidence: 0.12,
+  minAnswerConfidence: 0.1,
 } as const;

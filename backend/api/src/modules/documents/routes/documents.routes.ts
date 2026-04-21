@@ -76,6 +76,7 @@ documentsRouter.post("/upload", uploadMiddleware.single("file"), async (request,
         filename: request.file.originalname,
         mimeType: request.file.mimetype,
         storagePath: storedPath,
+        sizeBytes: request.file.size,
         status: "UPLOADED",
       })
       .returning();

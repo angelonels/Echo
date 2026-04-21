@@ -37,6 +37,7 @@ coverage/
 
 # Docker / DB Data
 postgres_data/
+uploads/
 
 # Specific temp files
 test_fact.txt

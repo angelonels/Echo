@@ -78,11 +78,16 @@ chatRouter.post("/", async (request, response) => {
     response.write("data: [DONE]\n\n");
 
     void analyticsQueue.add("log-chat", {
+      companyId: scope.companyScope,
+      agentId: scope.agentId,
+      conversationId: threadId,
+      source: "PLAYGROUND",
       sessionId: threadId,
       query,
       response: fullTextResponse.trim(),
       strategy: result.strategy,
       confidence: result.confidence,
+      fallbackUsed: result.shouldFallback,
     });
 
     response.end();

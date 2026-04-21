@@ -3,6 +3,7 @@ import {
   customType,
   date,
   doublePrecision,
+  integer,
   jsonb,
   pgTable,
   text,
@@ -24,6 +25,7 @@ export const documents = pgTable("documents", {
   filename: text("filename").notNull(),
   mimeType: text("mime_type").notNull().default("text/plain"),
   storagePath: text("storage_path").notNull(),
+  sizeBytes: integer("size_bytes").notNull().default(0),
   status: text("status").notNull().default("UPLOADED"),
   processingError: text("processing_error"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
@@ -44,9 +46,16 @@ export const knowledgeChunks = pgTable("knowledge_chunks", {
 
 export const analyticsLogs = pgTable("analytics_logs", {
   id: uuid("id").defaultRandom().primaryKey(),
+  companyId: text("company_id").notNull().default("default-company"),
+  agentId: text("agent_id").notNull().default("default-agent"),
+  conversationId: text("conversation_id"),
+  source: text("source").notNull().default("PLAYGROUND"),
   sessionId: text("session_id").notNull(),
   userQuery: text("user_query").notNull(),
   agentResponse: text("agent_response").notNull(),
+  retrievalStrategy: text("retrieval_strategy"),
+  confidenceScore: doublePrecision("confidence_score"),
+  fallbackUsed: boolean("fallback_used").default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
   processed: boolean("processed").default(false),
 });
