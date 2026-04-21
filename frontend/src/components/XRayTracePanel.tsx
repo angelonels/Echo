@@ -1,149 +1,199 @@
-import React from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Database, Search, ShieldCheck, Sparkles, Binary, CheckCircle2, XCircle } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { Badge } from '@/components/ui/badge';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { XRayEventContent } from '@/hooks/useEchoChat';
+"use client"
 
-interface XRayTracePanelProps {
-  xrayState: XRayEventContent;
-}
+import React from "react"
+import { AnimatePresence, motion } from "framer-motion"
+import {
+  Binary,
+  CheckCircle2,
+  Database,
+  Search,
+  ShieldCheck,
+  Sparkles,
+  XCircle,
+} from "lucide-react"
 
-export function XRayTracePanel({ xrayState }: XRayTracePanelProps) {
+import { Badge } from "@/components/ui/badge"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { XRayEventContent } from "@/hooks/useEchoChat"
+
+export function XRayTracePanel({ xrayState }: { xrayState: XRayEventContent }) {
   return (
-    <Card className="flex flex-col h-full bg-zinc-950/60 border-zinc-800/80 backdrop-blur-xl shadow-2xl overflow-hidden rounded-3xl">
-      <CardHeader className="border-b border-zinc-800/50 bg-zinc-900/30 p-4">
+    <Card className="flex h-full flex-col overflow-hidden rounded-[30px] border border-white/10 bg-[rgba(7,16,26,0.88)] shadow-[0_32px_100px_-62px_rgba(15,140,240,0.42)]">
+      <CardHeader className="border-b border-white/8 bg-white/4 p-4">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-sm font-medium text-zinc-300 flex items-center gap-2">
-            <Binary className="w-4 h-4 text-emerald-400" />
-            Execution Trace
+          <CardTitle className="flex items-center gap-2 text-sm font-medium text-zinc-200">
+            <Binary className="size-4 text-[var(--echo-accent)]" />
+            Retrieval trace
           </CardTitle>
-          <Badge variant="outline" className="bg-emerald-400/10 text-emerald-400 hover:bg-emerald-400/20 hover:text-emerald-300 border-emerald-400/20 text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-md">
+          <Badge
+            variant="outline"
+            className="border-emerald-400/20 bg-emerald-400/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-300"
+          >
             Live
           </Badge>
         </div>
       </CardHeader>
-      
+
       <ScrollArea className="flex-1 p-4 lg:p-6">
         <div className="space-y-6 pb-6">
-          
-          {xrayState.status === 'idle' && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center justify-center h-40 text-center space-y-3 mt-10">
-              <Sparkles className="w-8 h-8 text-zinc-700" />
-              <p className="text-xs text-zinc-500 font-medium tracking-wide">Awaiting pipeline execution...</p>
+          {xrayState.status === "idle" ? (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="mt-10 flex h-40 flex-col items-center justify-center space-y-3 text-center"
+            >
+              <Sparkles className="size-8 text-zinc-700" />
+              <p className="text-xs font-medium tracking-wide text-zinc-500">
+                Awaiting a playground request...
+              </p>
             </motion.div>
-          )}
+          ) : null}
 
-          {xrayState.status === 'initializing' && (
-            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="flex items-center gap-3 bg-zinc-900/50 p-3 rounded-xl border border-zinc-800/50">
-              <div className="w-4 h-4 rounded-full border-2 border-indigo-500 border-t-transparent animate-spin" />
-              <span className="text-sm font-medium tracking-wide text-zinc-300">Initializing Graph...</span>
+          {xrayState.status === "initializing" ? (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="flex items-center gap-3 rounded-xl border border-white/8 bg-white/5 p-3"
+            >
+              <div className="size-4 animate-spin rounded-full border-2 border-[var(--echo-accent)] border-t-transparent" />
+              <span className="text-sm font-medium tracking-wide text-zinc-300">
+                Initializing retrieval graph...
+              </span>
             </motion.div>
-          )}
+          ) : null}
 
           <AnimatePresence>
-            {(xrayState.status === 'expanding' || xrayState.queries) && (
+            {xrayState.status === "expanding" || xrayState.queries ? (
               <motion.div
                 key="step-1"
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 className="space-y-3"
               >
-                <div className="flex items-center gap-2 text-xs uppercase text-zinc-500 font-semibold tracking-widest px-1">
-                  <Search className="w-3.5 h-3.5 text-indigo-400" />
-                  <span>1. Query Expansion</span>
+                <div className="flex items-center gap-2 px-1 text-xs font-semibold uppercase tracking-widest text-zinc-500">
+                  <Search className="size-3.5 text-[var(--echo-accent)]" />
+                  <span>1. Query expansion</span>
                 </div>
                 {xrayState.queries ? (
-                  <Accordion className="w-full">
-                    <AccordionItem value="queries" className="border-zinc-800/50 bg-zinc-900/40 rounded-xl overflow-hidden px-1">
-                      <AccordionTrigger className="text-sm text-zinc-300 hover:no-underline py-3 px-3 hover:bg-zinc-800/30 rounded-lg transition-colors">
-                        View Parallax Queries ({xrayState.queries.length})
-                      </AccordionTrigger>
-                      <AccordionContent className="px-3 pb-3 space-y-2">
-                        {xrayState.queries.map((q, i) => (
-                          <div key={i} className="text-xs bg-zinc-950/50 text-zinc-400 px-3 py-2 rounded-lg border border-zinc-800">
-                            {q}
-                          </div>
-                        ))}
-                      </AccordionContent>
-                    </AccordionItem>
-                  </Accordion>
+                  <div className="space-y-2 rounded-xl border border-white/8 bg-white/5 p-3">
+                    <div className="text-xs uppercase tracking-[0.2em] text-zinc-500">
+                      query set ({xrayState.queries.length})
+                    </div>
+                    {xrayState.queries.map((query, index) => (
+                      <div
+                        key={index}
+                        className="rounded-lg border border-white/8 bg-[rgba(2,10,16,0.62)] px-3 py-2 text-xs text-zinc-400"
+                      >
+                        {query}
+                      </div>
+                    ))}
+                  </div>
                 ) : (
-                  <div className="text-xs text-indigo-400/80 animate-pulse pl-7 font-medium">Generating semantic variations...</div>
+                  <div className="animate-pulse pl-7 text-xs font-medium text-[var(--echo-accent)]/80">
+                    Generating semantic variations...
+                  </div>
                 )}
               </motion.div>
-            )}
+            ) : null}
 
-            {(xrayState.status === 'retrieved' || xrayState.docs) && (
+            {xrayState.status === "retrieved" || xrayState.docs ? (
               <motion.div
                 key="step-2"
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.1 }}
-                className="space-y-3 mt-6"
+                className="mt-6 space-y-3"
               >
-                <div className="flex items-center gap-2 text-xs uppercase text-zinc-500 font-semibold tracking-widest px-1">
-                  <Database className="w-3.5 h-3.5 text-cyan-400" />
-                  <span>2. RRF Hybrid Retrieval</span>
+                <div className="flex items-center gap-2 px-1 text-xs font-semibold uppercase tracking-widest text-zinc-500">
+                  <Database className="size-3.5 text-sky-400" />
+                  <span>2. Retrieval</span>
                 </div>
                 {xrayState.docs ? (
                   <div className="space-y-3">
-                    {xrayState.docs.map((doc, i) => (
-                      <Card key={i} className="bg-zinc-900/40 border-zinc-800/50 overflow-hidden">
-                        <CardHeader className="py-2 px-3 border-b border-zinc-800/50 bg-black/20 flex flex-row items-center justify-between">
-                          <span className="text-[10px] font-mono text-cyan-400/80">Result {i+1}</span>
-                          <Badge variant="outline" className="bg-indigo-500/10 text-indigo-400 border-indigo-500/20 text-[10px] py-0">
+                    {xrayState.docs.map((doc, index) => (
+                      <Card key={index} className="overflow-hidden border-white/8 bg-white/5">
+                        <CardHeader className="flex flex-row items-center justify-between border-b border-white/8 bg-black/15 px-3 py-2">
+                          <span className="text-[10px] font-mono text-sky-300">Result {index + 1}</span>
+                          <Badge
+                            variant="outline"
+                            className="border-[var(--echo-accent)]/20 bg-[var(--echo-accent)]/10 py-0 text-[10px] text-[var(--echo-accent)]"
+                          >
                             {doc.score} RRF
                           </Badge>
                         </CardHeader>
-                        <CardContent className="p-3 text-xs leading-relaxed text-zinc-400 line-clamp-3">
+                        <CardContent className="line-clamp-4 p-3 text-xs leading-relaxed text-zinc-400">
                           {doc.content}
                         </CardContent>
                       </Card>
                     ))}
                   </div>
                 ) : (
-                  <div className="text-xs text-cyan-400/80 animate-pulse pl-7 font-medium">Executing parallel vector & keyword search...</div>
+                  <div className="animate-pulse pl-7 text-xs font-medium text-sky-400/80">
+                    Executing hybrid vector and keyword retrieval...
+                  </div>
                 )}
               </motion.div>
-            )}
+            ) : null}
 
-            {(xrayState.status === 'grading' || xrayState.passedGrading !== undefined || xrayState.status === 'generating' || xrayState.status === 'done') && (
+            {xrayState.status === "grading" ||
+            xrayState.passedGrading !== undefined ||
+            xrayState.status === "generating" ||
+            xrayState.status === "done" ? (
               <motion.div
                 key="step-3"
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.1 }}
-                className="space-y-3 mt-6"
+                className="mt-6 space-y-3"
               >
-                <div className="flex items-center gap-2 text-xs uppercase text-zinc-500 font-semibold tracking-widest px-1">
-                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>3. Context Skeptic Eval</span>
+                <div className="flex items-center gap-2 px-1 text-xs font-semibold uppercase tracking-widest text-zinc-500">
+                  <ShieldCheck className="size-3.5 text-emerald-400" />
+                  <span>3. Confidence gate</span>
                 </div>
                 {xrayState.passedGrading !== undefined ? (
-                  <div className={`p-4 rounded-xl border flex items-start gap-3 ${
-                    xrayState.passedGrading 
-                      ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' 
-                      : 'bg-red-500/10 border-red-500/20 text-red-400'
-                  }`}>
-                    {xrayState.passedGrading ? <CheckCircle2 className="w-5 h-5 shrink-0 mt-0.5" /> : <XCircle className="w-5 h-5 shrink-0 mt-0.5" />}
+                  <div
+                    className={`flex items-start gap-3 rounded-xl border p-4 ${
+                      xrayState.passedGrading
+                        ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-300"
+                        : "border-red-500/20 bg-red-500/10 text-red-300"
+                    }`}
+                  >
+                    {xrayState.passedGrading ? (
+                      <CheckCircle2 className="mt-0.5 size-5 shrink-0" />
+                    ) : (
+                      <XCircle className="mt-0.5 size-5 shrink-0" />
+                    )}
                     <div className="text-sm font-medium leading-tight">
-                      {xrayState.passedGrading 
-                        ? 'Grounding established. Authorizing generation.' 
-                        : 'Insufficient context. Denying generation to prevent hallucination.'}
+                      {xrayState.passedGrading
+                        ? "Grounding established. Authorizing answer generation."
+                        : "Confidence is too low. Recommend fallback or escalation."}
                     </div>
                   </div>
                 ) : (
-                  <div className="text-xs text-emerald-400/80 animate-pulse pl-7 font-medium">Evaluating node relevance...</div>
+                  <div className="animate-pulse pl-7 text-xs font-medium text-emerald-400/80">
+                    Evaluating relevance and confidence...
+                  </div>
                 )}
               </motion.div>
-            )}
+            ) : null}
+
+            {xrayState.status === "done" ? (
+              <div className="rounded-2xl border border-white/8 bg-white/5 p-4 text-sm text-zinc-300">
+                <div className="flex flex-wrap gap-3">
+                  {xrayState.retrievalStrategy ? (
+                    <span>strategy: {xrayState.retrievalStrategy.toLowerCase()}</span>
+                  ) : null}
+                  {xrayState.latencyMs ? <span>latency: {xrayState.latencyMs}ms</span> : null}
+                  {xrayState.confidenceScore ? (
+                    <span>confidence: {xrayState.confidenceScore.toFixed(2)}</span>
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
           </AnimatePresence>
-          
         </div>
       </ScrollArea>
     </Card>
-  );
+  )
 }
