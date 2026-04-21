@@ -1,56 +1,114 @@
-"use client"
+import { FrictionBarList } from "./FrictionBarList"
+import { SentimentAreaChart } from "./SentimentAreaChart"
+import { VolumeStatCards } from "./VolumeStatCards"
+import type {
+  AnalyticsSummary,
+  ConversationSummary,
+  TopQuestion,
+} from "@/lib/api/schemas"
 
-import useSWR from 'swr';
-import { VolumeStatCards } from './VolumeStatCards';
-import { FrictionBarList } from './FrictionBarList';
-import { SentimentAreaChart } from './SentimentAreaChart';
-import { Loader2 } from 'lucide-react';
+export function AnalyticsDashboard({
+  summary,
+  questions,
+  conversations,
+}: {
+  summary: AnalyticsSummary
+  questions: TopQuestion[]
+  conversations: ConversationSummary[]
+}) {
+  const sentimentTotal =
+    summary.sentiment.positive + summary.sentiment.neutral + summary.sentiment.negative
 
-const fetcher = (url: string) => fetch(url).then(res => res.json());
+  const chartData = [
+    { time: "Positive", sentiment: summary.sentiment.positive },
+    { time: "Neutral", sentiment: summary.sentiment.neutral },
+    { time: "Negative", sentiment: summary.sentiment.negative },
+  ]
 
-export function AnalyticsDashboard() {
-  const { data, error, isLoading } = useSWR('http://localhost:3001/analytics/daily', fetcher, {
-    refreshInterval: 60000 // Refresh every minute
-  });
-
-  if (error) return <div className="text-red-400 p-8 text-center bg-zinc-950 rounded-2xl border border-red-500/20">Failed to load analytics engine.</div>;
-  if (isLoading) return (
-    <div className="flex items-center justify-center h-64 w-full">
-        <Loader2 className="w-8 h-8 text-indigo-500 animate-spin" />
-    </div>
-  );
-
-  const rawSummaries = data?.timeline || [];
-  
-  // Format timelines
-  const timelineData = rawSummaries.map((s: any) => {
-      const date = new Date(s.timeWindow);
-      const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      return {
-          time: timeStr,
-          sentiment: s.frictionData.avg_sentiment || 0
-      };
-  });
-
-  // Calculate volume globally
-  let globalCount = 0;
-  rawSummaries.forEach((s: any) => {
-     const issues = s.frictionData.top_issues || [];
-     issues.forEach((i: any) => { globalCount += i.count || 0; });
-  });
-
-  const daily = data?.today || {};
-  const currentSentiment = daily.avgSentiment !== undefined ? daily.avgSentiment : 0;
-  const currentIssues = daily.topIssues || [];
+  const questionData = questions.map((question) => ({
+    name: question.question,
+    count: question.count,
+  }))
 
   return (
     <div className="space-y-6">
-      <VolumeStatCards sentiment={currentSentiment} interactions={globalCount} />
-      
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-         <FrictionBarList data={currentIssues} />
-         <SentimentAreaChart data={timelineData} />
+      <VolumeStatCards
+        sentiment={summary.avgConfidence}
+        interactions={summary.totalMessages}
+        fallbackRate={summary.fallbackRate}
+        totalConversations={summary.totalConversations}
+      />
+
+      <div className="grid gap-6 xl:grid-cols-[1.08fr_0.92fr]">
+        <FrictionBarList data={questionData} />
+        <SentimentAreaChart data={chartData} total={sentimentTotal} />
+      </div>
+
+      <div className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
+        <div className="rounded-[28px] border border-white/10 bg-[rgba(7,16,26,0.84)] p-6">
+          <h3 className="text-lg font-semibold text-white">Top questions</h3>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Repeated customer intents worth improving in the knowledge base.
+          </p>
+          <div className="mt-5 space-y-3">
+            {questions.length ? (
+              questions.map((question) => (
+                <div
+                  key={question.question}
+                  className="flex items-center justify-between rounded-2xl border border-white/8 bg-white/5 px-4 py-3"
+                >
+                  <span className="max-w-[80%] text-sm text-zinc-200">
+                    {question.question}
+                  </span>
+                  <span className="rounded-full bg-white/6 px-2.5 py-1 text-xs text-zinc-300">
+                    {question.count}
+                  </span>
+                </div>
+              ))
+            ) : (
+              <div className="rounded-2xl border border-dashed border-white/10 bg-white/4 p-6 text-sm text-muted-foreground">
+                No question volume yet.
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="rounded-[28px] border border-white/10 bg-[rgba(7,16,26,0.84)] p-6">
+          <h3 className="text-lg font-semibold text-white">Recent conversations</h3>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Snapshot of recent widget and playground sessions.
+          </p>
+          <div className="mt-5 space-y-3">
+            {conversations.length ? (
+              conversations.map((conversation) => (
+                <div
+                  key={conversation.id}
+                  className="grid gap-3 rounded-2xl border border-white/8 bg-white/5 px-4 py-4 sm:grid-cols-[1fr_auto_auto]"
+                >
+                  <div>
+                    <div className="text-sm font-medium text-white">{conversation.id}</div>
+                    <div className="mt-1 text-xs text-zinc-500">
+                      {conversation.source.toLowerCase()}
+                      {" · "}
+                      {new Date(conversation.lastMessageAt).toLocaleString()}
+                    </div>
+                  </div>
+                  <div className="text-sm text-zinc-300">
+                    {conversation.messageCount} messages
+                  </div>
+                  <div className="text-sm text-zinc-300">
+                    avg {conversation.avgConfidence.toFixed(2)}
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="rounded-2xl border border-dashed border-white/10 bg-white/4 p-6 text-sm text-muted-foreground">
+                No conversation history yet.
+              </div>
+            )}
+          </div>
+        </div>
       </div>
     </div>
-  );
+  )
 }

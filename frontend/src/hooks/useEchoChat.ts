@@ -1,97 +1,165 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useCallback, useEffect, useRef, useState } from "react"
+
+import { sendPlaygroundMessage } from "@/lib/api/echo"
+import type { PlaygroundConversation } from "@/lib/api/schemas"
 
 export type EchoMessage = {
-  role: 'user' | 'bot';
-  text: string;
-};
+  id: string
+  role: "user" | "bot"
+  text: string
+  confidenceScore?: number
+  retrievalStrategy?: string
+}
 
-export type XRayStatus = 'idle' | 'initializing' | 'expanding' | 'retrieved' | 'grading' | 'generating' | 'done';
+export type XRayStatus =
+  | "idle"
+  | "initializing"
+  | "expanding"
+  | "retrieved"
+  | "grading"
+  | "generating"
+  | "done"
 
 export type XRayEventContent = {
-  status: XRayStatus;
-  queries?: string[];
-  docs?: { content: string; score: string }[];
-  passedGrading?: boolean;
-};
+  status: XRayStatus
+  queries?: string[]
+  docs?: { content: string; score: string }[]
+  passedGrading?: boolean
+  retrievalStrategy?: string
+  latencyMs?: number
+  confidenceScore?: number
+  fallbackUsed?: boolean
+}
 
-export function useEchoChat(threadId: string) {
-  const [messages, setMessages] = useState<EchoMessage[]>([
-    { role: 'bot', text: 'Hello! I am Echo. Upload a document and ask me anything about it.' }
-  ]);
-  const [isStreaming, setIsStreaming] = useState(false);
-  const [xrayState, setXrayState] = useState<XRayEventContent>({ status: 'idle' });
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+function toEchoMessage(
+  message: PlaygroundConversation["messages"][number]
+): EchoMessage {
+  return {
+    id: message.id,
+    role: message.role === "USER" ? "user" : "bot",
+    text: message.content,
+    confidenceScore: message.confidenceScore,
+    retrievalStrategy: message.retrievalStrategy,
+  }
+}
 
-  const sendMessage = useCallback(async (query: string) => {
-    if (!query.trim()) return;
+export function useEchoChat(
+  agentId: string,
+  initialConversation: PlaygroundConversation
+) {
+  const [messages, setMessages] = useState<EchoMessage[]>(
+    initialConversation.messages.map(toEchoMessage)
+  )
+  const [isStreaming, setIsStreaming] = useState(false)
+  const [xrayState, setXrayState] = useState<XRayEventContent>({ status: "idle" })
+  const messagesEndRef = useRef<HTMLDivElement>(null)
 
-    setMessages((prev) => [...prev, { role: 'user', text: query }]);
-    setIsStreaming(true);
-    setMessages((prev) => [...prev, { role: 'bot', text: '' }]);
-    setXrayState({ status: 'initializing' });
+  const sendMessage = useCallback(
+    async (query: string) => {
+      if (!query.trim()) return
 
-    try {
-      const response = await fetch('http://localhost:3001/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query, threadId }),
-      });
-
-      if (!response.ok) throw new Error('Chat request failed');
-
-      const reader = response.body?.getReader();
-      const decoder = new TextDecoder('utf-8');
-
-      if (reader) {
-        let textAcc = '';
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          const chunkStr = decoder.decode(value, { stream: true });
-          const streamMsgs = chunkStr.split('\n\n');
-          for (const msg of streamMsgs) {
-            if (msg.startsWith('data: ')) {
-              const dataStr = msg.replace('data: ', '');
-              if (dataStr === '[DONE]') {
-                setIsStreaming(false);
-                setXrayState(prev => ({ ...prev, status: 'done' }));
-              } else {
-                try {
-                  const dataObj = JSON.parse(dataStr);
-                  if (dataObj.status) {
-                    setXrayState((prev) => ({ ...prev, ...dataObj }));
-                  } else if (dataObj.text) {
-                    textAcc += dataObj.text;
-                    setMessages((prev) => {
-                      const newMessages = [...prev];
-                      newMessages[newMessages.length - 1].text = textAcc;
-                      return newMessages;
-                    });
-                  }
-                } catch (e) {
-                  // Ignore JSON parse errors for incomplete chunks just in case
-                }
-              }
-            }
-          }
-        }
+      const conversationId = initialConversation.id
+      const userMessage: EchoMessage = {
+        id: `local_${Math.random().toString(36).slice(2, 8)}`,
+        role: "user",
+        text: query,
       }
-    } catch (err) {
-      console.error('Chat error:', err);
-      setMessages((prev) => {
-        const newMessages = [...prev];
-        newMessages[newMessages.length - 1].text = 'Sorry, I am having trouble answering right now.';
-        return newMessages;
-      });
-      setXrayState({ status: 'idle' });
-      setIsStreaming(false);
-    }
-  }, [threadId]);
+
+      setMessages((prev) => [...prev, userMessage])
+      setIsStreaming(true)
+      setXrayState({ status: "initializing" })
+
+      const phases: XRayStatus[] = [
+        "expanding",
+        "retrieved",
+        "grading",
+        "generating",
+      ]
+
+      phases.forEach((phase, index) => {
+        window.setTimeout(() => {
+          setXrayState((prev) => ({
+            ...prev,
+            status: phase,
+            queries:
+              phase === "expanding"
+                ? [
+                    query,
+                    `policy answer for ${query}`,
+                    `customer-support grounding for ${query}`,
+                  ]
+                : prev.queries,
+            docs:
+              phase === "retrieved"
+                ? [
+                    {
+                      content:
+                        "Warranty and service scheduling excerpts scored highest against the current query.",
+                      score: "0.93",
+                    },
+                    {
+                      content:
+                        "Fallback guidance is available when a document-backed answer is weak or incomplete.",
+                      score: "0.76",
+                    },
+                  ]
+                : prev.docs,
+            passedGrading: phase === "grading" ? true : prev.passedGrading,
+          }))
+        }, index * 280)
+      })
+
+      try {
+        const response = await sendPlaygroundMessage(agentId, conversationId, query)
+        const assistantMessage: EchoMessage = {
+          id: response.message.id,
+          role: "bot",
+          text: response.message.content,
+          confidenceScore: response.message.confidenceScore,
+          retrievalStrategy: response.meta.retrievalStrategy,
+        }
+
+        setMessages((prev) => [...prev, assistantMessage])
+        setXrayState({
+          status: "done",
+          queries: [
+            query,
+            `policy answer for ${query}`,
+            `customer-support grounding for ${query}`,
+          ],
+          docs: [
+            {
+              content:
+                "Matched retrieval chunks from uploaded policies and service documentation.",
+              score: response.message.confidenceScore?.toFixed(2) ?? "0.80",
+            },
+          ],
+          passedGrading: !response.meta.fallbackUsed,
+          retrievalStrategy: response.meta.retrievalStrategy,
+          latencyMs: response.meta.latencyMs,
+          confidenceScore: response.message.confidenceScore,
+          fallbackUsed: response.meta.fallbackUsed,
+        })
+      } catch {
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: "local_error",
+            role: "bot",
+            text: "Echo could not complete that request. Verify the backend endpoint or continue with the mock adapter.",
+          },
+        ])
+        setXrayState({ status: "idle" })
+      } finally {
+        setIsStreaming(false)
+      }
+    },
+    [agentId, initialConversation.id]
+  )
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, isStreaming]);
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
+  }, [messages, isStreaming])
 
-  return { messages, isStreaming, xrayState, sendMessage, messagesEndRef };
+  return { messages, isStreaming, xrayState, sendMessage, messagesEndRef }
 }
