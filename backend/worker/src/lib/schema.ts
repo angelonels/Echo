@@ -1,4 +1,46 @@
-import { boolean, date, doublePrecision, jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import {
+  boolean,
+  customType,
+  date,
+  doublePrecision,
+  jsonb,
+  pgTable,
+  text,
+  timestamp,
+  uuid,
+  vector,
+} from "drizzle-orm/pg-core";
+
+const tsvectorType = customType<{ data: string }>({
+  dataType() {
+    return "tsvector";
+  },
+});
+
+export const documents = pgTable("documents", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  companyId: text("company_id").notNull().default("default-company"),
+  agentId: text("agent_id").notNull().default("default-agent"),
+  filename: text("filename").notNull(),
+  mimeType: text("mime_type").notNull().default("text/plain"),
+  storagePath: text("storage_path").notNull(),
+  status: text("status").notNull().default("UPLOADED"),
+  processingError: text("processing_error"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow(),
+});
+
+export const knowledgeChunks = pgTable("knowledge_chunks", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  docId: uuid("doc_id").references(() => documents.id, { onDelete: "cascade" }).notNull(),
+  companyId: text("company_id").notNull().default("default-company"),
+  agentId: text("agent_id").notNull().default("default-agent"),
+  chunkIndex: text("chunk_index").notNull().default("0"),
+  content: text("content").notNull(),
+  searchVector: tsvectorType("search_vector"),
+  embedding: vector("embedding", { dimensions: 1024 }),
+  metadata: jsonb("metadata").notNull().default({}),
+});
 
 export const analyticsLogs = pgTable("analytics_logs", {
   id: uuid("id").defaultRandom().primaryKey(),

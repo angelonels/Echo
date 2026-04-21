@@ -1,6 +1,6 @@
 import { eq, gte } from "drizzle-orm";
 import { queueNames } from "@echo/shared";
-import { chatModel } from "../lib/bedrock.js";
+import { invokeAnalyticsModel } from "../lib/bedrock.js";
 import { db } from "../lib/db.js";
 import { analyticsLogs, dailyInsights, mappedSummaries } from "../lib/schema.js";
 import { createQueueWorker } from "../lib/queues.js";
@@ -23,8 +23,8 @@ ${rawText}
 Respond ONLY with a JSON map in the exact format:
 {"top_issues": [{"name": "Issue", "count": 10}], "avg_sentiment": 0.5}`;
 
-  const response = await chatModel.invoke(prompt);
-  const content = (response.content as string).replace(/```json/gi, "").replace(/```/g, "");
+  const rawContent = await invokeAnalyticsModel(prompt);
+  const content = rawContent.replace(/```json/gi, "").replace(/```/g, "");
   const data = JSON.parse(content);
 
   await db.transaction(async (transaction) => {
@@ -61,8 +61,8 @@ ${rawText}
 Respond ONLY with a JSON map in the exact format:
 {"top_issues": [{"name": "Global Issue", "count": 100}], "avg_sentiment": 0.5}`;
 
-  const response = await chatModel.invoke(prompt);
-  const content = (response.content as string).replace(/```json/gi, "").replace(/```/g, "");
+  const rawContent = await invokeAnalyticsModel(prompt);
+  const content = rawContent.replace(/```json/gi, "").replace(/```/g, "");
   const data = JSON.parse(content);
   const today = new Date().toISOString().split("T")[0];
 

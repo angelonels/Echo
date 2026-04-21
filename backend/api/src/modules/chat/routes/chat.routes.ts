@@ -1,7 +1,8 @@
 import { Router } from "express";
 import { StreamStatus, chatRequestSchema } from "@echo/shared";
 import { sendValidationError } from "../../../lib/http.js";
-import { agentWorkflow, chatModel } from "../../../lib/agent.js";
+import { retrievalOrchestrator } from "../../../lib/retrieval.js";
+import { resolveAgentScope } from "../../../lib/tenant-scope.js";
 import { analyticsQueue } from "../../../lib/queues.js";
 
 export const chatRouter = Router();
@@ -12,78 +13,65 @@ chatRouter.post("/", async (request, response) => {
     return sendValidationError(response, parsed.error.format());
   }
 
-  const { query, threadId } = parsed.data;
+  const {
+    query,
+    threadId,
+    companyId = "default-company",
+    agentId = "default-agent",
+    conversation = [],
+  } = parsed.data;
 
   try {
+    const scope = await resolveAgentScope(companyId, agentId);
+
     response.setHeader("Content-Type", "text/event-stream");
     response.setHeader("Cache-Control", "no-cache");
     response.setHeader("Connection", "keep-alive");
     response.write(`data: ${JSON.stringify({ status: StreamStatus.Initializing })}\n\n`);
 
-    const stream = await agentWorkflow.stream(
-      {
-        originalQuery: query,
-        messages: [{ role: "user", content: query } as any],
-      },
-      { configurable: { thread_id: threadId } },
-    );
+    const result = await retrievalOrchestrator.run({
+      query,
+      companyId: scope.companyScope,
+      agentId: scope.agentId,
+      conversation,
+    });
 
-    let finalState: any = null;
-    let fallbackTriggered = false;
-    let loopCount = 0;
-
-    for await (const chunk of stream) {
-      if (chunk.expand) {
-        loopCount += 1;
-        response.write(`data: ${JSON.stringify({ status: StreamStatus.Expanding, queries: chunk.expand.searchQueries })}\n\n`);
-      }
-
-      if (chunk.retrieve) {
-        const docs = chunk.retrieve.retrievedDocs.map((doc: any) => ({
-          content: `${doc.content.substring(0, 50)}...`,
-          score: Number(doc.rrf_score).toFixed(3),
-        }));
-
-        response.write(`data: ${JSON.stringify({ status: StreamStatus.Retrieved, docs })}\n\n`);
-      }
-
-      if (chunk.grade) {
-        response.write(`data: ${JSON.stringify({ status: StreamStatus.Grading, passed: chunk.grade.contextGraded })}\n\n`);
-        finalState = Object.values(chunk)[0];
-
-        if (!chunk.grade.contextGraded && loopCount >= 2) {
-          fallbackTriggered = true;
-          break;
-        }
-      }
-
-      finalState = Object.values(chunk)[0];
+    if (result.expandedQueries.length > 1) {
+      response.write(
+        `data: ${JSON.stringify({
+          status: StreamStatus.Expanding,
+          queries: result.expandedQueries,
+        })}\n\n`,
+      );
     }
 
-    const docs = finalState?.retrievedDocs || [];
-    const context = docs.map((doc: any) => doc.content).join("\n---\n");
+    response.write(
+      `data: ${JSON.stringify({
+        status: StreamStatus.Retrieved,
+        docs: result.context.map((chunk) => ({
+          content: `${chunk.content.substring(0, 80)}...`,
+          score: chunk.score.toFixed(3),
+        })),
+      })}\n\n`,
+    );
 
-    const prompt =
-      fallbackTriggered || finalState?.contextGraded === false
-        ? `The user asked: ${query}. Our retrieval database does not contain this information.
-State explicitly that you cannot find this in the documentation and DO NOT hallucinate an answer.`
-        : `You are Echo. Answer using ONLY the provided context. If the context is empty, apologize and admit you do not know.
-Context:
-${context}
-Question:
-${query}`;
+    response.write(
+      `data: ${JSON.stringify({
+        status: StreamStatus.Grading,
+        passed: !result.shouldFallback,
+      })}\n\n`,
+    );
 
     response.write(`data: ${JSON.stringify({ status: StreamStatus.Generating })}\n\n`);
 
-    const resultStream = await chatModel.stream(prompt);
     let fullTextResponse = "";
-
-    for await (const chunk of resultStream) {
-      const text = chunk.content as string;
-      if (text) {
-        fullTextResponse += text;
-        response.write(`data: ${JSON.stringify({ text })}\n\n`);
+    for (const token of result.answer.split(/(\s+)/)) {
+      if (!token) {
+        continue;
       }
+
+      fullTextResponse += token;
+      response.write(`data: ${JSON.stringify({ text: token })}\n\n`);
     }
 
     response.write(`data: ${JSON.stringify({ status: StreamStatus.Done })}\n\n`);
@@ -92,7 +80,9 @@ ${query}`;
     void analyticsQueue.add("log-chat", {
       sessionId: threadId,
       query,
-      response: fullTextResponse,
+      response: fullTextResponse.trim(),
+      strategy: result.strategy,
+      confidence: result.confidence,
     });
 
     response.end();

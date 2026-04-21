@@ -43,26 +43,60 @@ export async function initDb() {
 
       CREATE TABLE IF NOT EXISTS documents (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        company_id TEXT NOT NULL DEFAULT 'default-company',
+        agent_id TEXT NOT NULL DEFAULT 'default-agent',
         filename TEXT NOT NULL,
-        storage_path TEXT,
-        created_at TIMESTAMPTZ DEFAULT NOW()
+        mime_type TEXT NOT NULL DEFAULT 'text/plain',
+        storage_path TEXT NOT NULL DEFAULT '',
+        status TEXT NOT NULL DEFAULT 'UPLOADED',
+        processing_error TEXT,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
       );
+    `);
+
+    await client.query(`
+      ALTER TABLE documents
+      ADD COLUMN IF NOT EXISTS company_id TEXT NOT NULL DEFAULT 'default-company',
+      ADD COLUMN IF NOT EXISTS agent_id TEXT NOT NULL DEFAULT 'default-agent',
+      ADD COLUMN IF NOT EXISTS mime_type TEXT NOT NULL DEFAULT 'text/plain',
+      ADD COLUMN IF NOT EXISTS storage_path TEXT NOT NULL DEFAULT '',
+      ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'UPLOADED',
+      ADD COLUMN IF NOT EXISTS processing_error TEXT,
+      ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
     `);
 
     await client.query(`
       CREATE TABLE IF NOT EXISTS knowledge_chunks (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         doc_id UUID REFERENCES documents(id) ON DELETE CASCADE,
+        company_id TEXT NOT NULL DEFAULT 'default-company',
+        agent_id TEXT NOT NULL DEFAULT 'default-agent',
+        chunk_index TEXT NOT NULL DEFAULT '0',
         content TEXT NOT NULL,
         embedding vector(1024),
+        metadata JSONB NOT NULL DEFAULT '{}',
         search_vector tsvector GENERATED ALWAYS AS (to_tsvector('english', content)) STORED
       );
+    `);
+
+    await client.query(`
+      ALTER TABLE knowledge_chunks
+      ADD COLUMN IF NOT EXISTS company_id TEXT NOT NULL DEFAULT 'default-company',
+      ADD COLUMN IF NOT EXISTS agent_id TEXT NOT NULL DEFAULT 'default-agent',
+      ADD COLUMN IF NOT EXISTS chunk_index TEXT NOT NULL DEFAULT '0',
+      ADD COLUMN IF NOT EXISTS metadata JSONB NOT NULL DEFAULT '{}';
     `);
 
     await client.query(`
       CREATE INDEX IF NOT EXISTS knowledge_chunks_search_idx
       ON knowledge_chunks
       USING GIN (search_vector);
+    `);
+
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS knowledge_chunks_scope_idx
+      ON knowledge_chunks (company_id, agent_id, doc_id);
     `);
   } finally {
     client.release();

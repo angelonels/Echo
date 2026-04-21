@@ -1,6 +1,7 @@
 import { pool } from "./lib/db.js";
 import { logger } from "./lib/logger.js";
 import { maintenanceQueue, redisConnection } from "./lib/queues.js";
+import "./jobs/document-ingestion.js";
 import "./jobs/chat-analytics.js";
 import "./jobs/map-reduce.js";
 

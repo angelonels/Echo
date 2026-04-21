@@ -3,6 +3,12 @@ import { StreamStatus } from "../constants/enums.js";
 export type ChatRequest = {
   query: string;
   threadId: string;
+  companyId?: string;
+  agentId?: string;
+  conversation?: Array<{
+    role: "user" | "assistant";
+    content: string;
+  }>;
 };
 
 export type RetrievedDocumentPreview = {

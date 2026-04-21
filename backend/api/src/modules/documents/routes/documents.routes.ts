@@ -1,29 +1,48 @@
-import fs from "node:fs/promises";
 import { Router } from "express";
-import { RecursiveCharacterTextSplitter } from "@langchain/textsplitters";
-import { BedrockEmbeddings } from "@langchain/aws";
-import { PDFParse } from "pdf-parse";
-import { UploadMimeType, uploadDocumentSchema } from "@echo/shared";
+import { desc, eq } from "drizzle-orm";
+import { uploadDocumentSchema } from "@echo/shared";
 import { db } from "../../../lib/db.js";
-import { documents, knowledgeChunks } from "../../../lib/schema.js";
-import { env } from "../../../config/env.js";
+import { documents } from "../../../lib/schema.js";
 import { sendValidationError } from "../../../lib/http.js";
+import { documentsQueue } from "../../../lib/queues.js";
+import { resolveAgentScope } from "../../../lib/tenant-scope.js";
 import { uploadMiddleware, resolveUploadPath } from "../../../lib/uploads.js";
+
+const DEFAULT_COMPANY_ID = "default-company";
+const DEFAULT_AGENT_ID = "default-agent";
 
 const documentsRouter = Router();
 
-const credentials =
-  env.AWS_ACCESS_KEY_ID && env.AWS_SECRET_ACCESS_KEY
-    ? {
-        accessKeyId: env.AWS_ACCESS_KEY_ID,
-        secretAccessKey: env.AWS_SECRET_ACCESS_KEY,
-      }
-    : undefined;
+documentsRouter.get("/", async (request, response) => {
+  const companyId = String(request.query.companyId ?? DEFAULT_COMPANY_ID);
+  const agentId = String(request.query.agentId ?? DEFAULT_AGENT_ID);
 
-const embeddings = new BedrockEmbeddings({
-  region: env.AWS_DEFAULT_REGION,
-  credentials,
-  model: "amazon.titan-embed-text-v2:0",
+  try {
+    const scope = await resolveAgentScope(companyId, agentId);
+    const rows = await db
+      .select()
+      .from(documents)
+      .where(eq(documents.companyId, scope.companyScope))
+      .orderBy(desc(documents.createdAt));
+
+    response.status(200).json({
+      items: rows
+        .filter((row) => row.agentId === scope.agentId)
+        .map((row) => ({
+          id: row.id,
+          fileName: row.filename,
+          mimeType: row.mimeType,
+          sizeBytes: 0,
+          status: row.status,
+          createdAt: row.createdAt,
+          updatedAt: row.updatedAt,
+          versionGroupKey: null,
+          errorMessage: row.processingError,
+        })),
+    });
+  } catch {
+    response.status(500).json({ error: "Internal server error while fetching documents" });
+  }
 });
 
 documentsRouter.post("/upload", uploadMiddleware.single("file"), async (request, response) => {
@@ -31,9 +50,14 @@ documentsRouter.post("/upload", uploadMiddleware.single("file"), async (request,
     return response.status(400).json({ error: "No file uploaded" });
   }
 
+  const companyId = String(request.body.companyId ?? DEFAULT_COMPANY_ID);
+  const agentId = String(request.body.agentId ?? DEFAULT_AGENT_ID);
+
   const parsed = uploadDocumentSchema.safeParse({
     mimetype: request.file.mimetype,
     originalname: request.file.originalname,
+    companyId,
+    agentId,
   });
 
   if (!parsed.success) {
@@ -42,61 +66,51 @@ documentsRouter.post("/upload", uploadMiddleware.single("file"), async (request,
 
   try {
     const storedPath = resolveUploadPath(request.file.filename);
-    const fileBuffer = await fs.readFile(storedPath);
+    const scope = await resolveAgentScope(companyId, agentId);
 
-    let textContent = "";
-    if (request.file.mimetype === UploadMimeType.Pdf) {
-      const parser = new PDFParse({ data: fileBuffer });
-      const pdfData = await parser.getText();
-      textContent = pdfData.text;
-      await parser.destroy();
-    } else if (request.file.mimetype === UploadMimeType.Text) {
-      textContent = fileBuffer.toString("utf-8");
+    const [newDocument] = await db
+      .insert(documents)
+      .values({
+        companyId: scope.companyScope,
+        agentId: scope.agentId,
+        filename: request.file.originalname,
+        mimeType: request.file.mimetype,
+        storagePath: storedPath,
+        status: "UPLOADED",
+      })
+      .returning();
+
+    if (!newDocument) {
+      throw new Error("Document insert failed");
     }
 
-    const splitter = new RecursiveCharacterTextSplitter({
-      chunkSize: 1000,
-      chunkOverlap: 200,
-    });
-    const chunks = await splitter.createDocuments([textContent]);
-    const chunkTexts = chunks.map((chunk) => chunk.pageContent);
-    const vectors = await embeddings.embedDocuments(chunkTexts);
+    await documentsQueue.add(
+      "ingest-document",
+      {
+        documentId: newDocument.id,
+        companyId: scope.companyScope,
+        agentId: scope.agentId,
+      },
+      {
+        attempts: 3,
+        backoff: {
+          type: "exponential",
+          delay: 1000,
+        },
+        removeOnComplete: 20,
+        removeOnFail: 20,
+      },
+    );
 
-    let newDocumentId = "";
-
-    await db.transaction(async (transaction) => {
-      const [newDocument] = await transaction
-        .insert(documents)
-        .values({
-          filename: request.file!.originalname,
-          storagePath: storedPath,
-        })
-        .returning();
-
-      if (!newDocument?.id) {
-        throw new Error("Document insert failed");
-      }
-
-      newDocumentId = newDocument.id;
-
-      await transaction.insert(knowledgeChunks).values(
-        chunkTexts.map((text, index) => ({
-          docId: newDocument.id,
-          content: text,
-          embedding: vectors[index],
-        })),
-      );
-    });
-
-    response.status(201).json({
-      message: "File uploaded and embedded successfully",
-      documentId: newDocumentId,
+    response.status(202).json({
+      message: "File uploaded and queued for ingestion",
+      documentId: newDocument.id,
       filename: request.file.originalname,
-      chunksAdded: chunks.length,
       storedPath,
+      status: "UPLOADED",
     });
-  } catch (error) {
-    response.status(500).json({ error: "Internal server error while processing the upload" });
+  } catch {
+    response.status(500).json({ error: "Internal server error while queuing the upload" });
   }
 });
 

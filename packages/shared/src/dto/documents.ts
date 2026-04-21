@@ -2,6 +2,6 @@ export type UploadDocumentResponse = {
   message: string;
   documentId?: string;
   filename?: string;
-  chunksAdded?: number;
   storedPath?: string;
+  status?: "UPLOADED" | "PROCESSING" | "READY" | "FAILED";
 };

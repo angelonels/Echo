@@ -2,7 +2,6 @@ import { createApp } from "./app/create-app.js";
 import { env } from "./config/env.js";
 import { initDb, pool } from "./lib/db.js";
 import { logger } from "./lib/logger.js";
-import { postgresSaver } from "./lib/agent.js";
 import { redisConnection } from "./lib/queues.js";
 import { ensureUploadRoot } from "./lib/uploads.js";
 
@@ -11,7 +10,6 @@ const app = createApp();
 async function start() {
   await ensureUploadRoot();
   await initDb();
-  await postgresSaver.setup();
 
   const server = app.listen(env.API_PORT, () => {
     logger.info({ port: env.API_PORT }, "API listening");

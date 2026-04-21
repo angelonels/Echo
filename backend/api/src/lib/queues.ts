@@ -7,6 +7,10 @@ export const redisConnection = new Redis(env.REDIS_URL, {
   maxRetriesPerRequest: null,
 });
 
+export const documentsQueue = new Queue(queueNames.documents, {
+  connection: redisConnection,
+});
+
 export const analyticsQueue = new Queue(queueNames.analytics, {
   connection: redisConnection,
 });
