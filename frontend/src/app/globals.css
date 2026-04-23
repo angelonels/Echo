@@ -7,85 +7,63 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-manrope);
-  --font-mono: var(--font-manrope);
-  --font-heading: var(--font-space-grotesk);
-  --color-sidebar-ring: var(--sidebar-ring);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar: var(--sidebar);
-  --color-chart-5: var(--chart-5);
-  --color-chart-4: var(--chart-4);
-  --color-chart-3: var(--chart-3);
-  --color-chart-2: var(--chart-2);
-  --color-chart-1: var(--chart-1);
-  --color-ring: var(--ring);
-  --color-input: var(--input);
-  --color-border: var(--border);
-  --color-destructive: var(--destructive);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-accent: var(--accent);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-muted: var(--muted);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-secondary: var(--secondary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-primary: var(--primary);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-popover: var(--popover);
-  --color-card-foreground: var(--card-foreground);
+  --font-sans: var(--font-geist);
+  --font-mono: var(--font-geist-mono);
+  --font-heading: var(--font-geist);
   --color-card: var(--card);
-  --radius-sm: calc(var(--radius) * 0.6);
-  --radius-md: calc(var(--radius) * 0.8);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-sm: calc(var(--radius) * 0.55);
+  --radius-md: calc(var(--radius) * 0.75);
   --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) * 1.4);
-  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-xl: calc(var(--radius) * 1.35);
+  --radius-2xl: calc(var(--radius) * 1.7);
   --radius-3xl: calc(var(--radius) * 2.2);
-  --radius-4xl: calc(var(--radius) * 2.6);
 }
 
 :root {
-  --background: #07111b;
-  --foreground: #f4f8fb;
-  --card: rgba(9, 18, 30, 0.86);
-  --card-foreground: #f4f8fb;
-  --popover: rgba(9, 18, 30, 0.96);
-  --popover-foreground: #f4f8fb;
-  --primary: #11b5a4;
-  --primary-foreground: #07111b;
-  --secondary: rgba(255, 255, 255, 0.08);
-  --secondary-foreground: #f4f8fb;
-  --muted: rgba(255, 255, 255, 0.06);
-  --muted-foreground: #90a3b5;
-  --accent: rgba(17, 181, 164, 0.12);
-  --accent-foreground: #f4f8fb;
-  --destructive: #ef5b78;
-  --border: rgba(255, 255, 255, 0.08);
-  --input: rgba(255, 255, 255, 0.08);
-  --ring: rgba(17, 181, 164, 0.3);
-  --chart-1: #11b5a4;
-  --chart-2: #0f8cf0;
-  --chart-3: #34d399;
-  --chart-4: #f59e0b;
-  --chart-5: #f97316;
-  --radius: 1rem;
-  --sidebar: rgba(7, 16, 26, 0.96);
-  --sidebar-foreground: #f4f8fb;
-  --sidebar-primary: #11b5a4;
-  --sidebar-primary-foreground: #07111b;
-  --sidebar-accent: rgba(255, 255, 255, 0.06);
-  --sidebar-accent-foreground: #f4f8fb;
-  --sidebar-border: rgba(255, 255, 255, 0.08);
-  --sidebar-ring: rgba(17, 181, 164, 0.3);
-  --echo-canvas: #060d15;
-  --echo-surface: #09121e;
-  --echo-panel: rgba(13, 22, 34, 0.88);
-  --echo-accent: #11b5a4;
-  --echo-accent-strong: #1ad8c3;
+  --background: #f4eddf;
+  --foreground: #18140f;
+  --card: #fffaf0;
+  --card-foreground: #18140f;
+  --popover: #fffaf0;
+  --popover-foreground: #18140f;
+  --primary: #0f766e;
+  --primary-foreground: #fffaf0;
+  --secondary: #efe3cf;
+  --secondary-foreground: #31271d;
+  --muted: #eadcc7;
+  --muted-foreground: #786b5b;
+  --accent: #c56f45;
+  --accent-foreground: #fffaf0;
+  --destructive: #be123c;
+  --border: rgba(39, 31, 23, 0.12);
+  --input: rgba(39, 31, 23, 0.16);
+  --ring: rgba(15, 118, 110, 0.28);
+  --radius: 0.75rem;
+  --echo-canvas: #f4eddf;
+  --echo-surface: #fffaf0;
+  --echo-elevated: #efe3cf;
+  --echo-border: rgba(39, 31, 23, 0.12);
+  --echo-cyan: #0f766e;
+  --echo-blue: #245c63;
+  --echo-violet: #5f4b8b;
+  --echo-emerald: #2f855a;
+  --echo-amber: #b7791f;
+  --echo-rose: #be123c;
 }
 
 @layer base {
@@ -95,10 +73,13 @@
 
   html {
     @apply font-sans;
+    background: var(--background);
+    scroll-behavior: smooth;
   }
 
   body {
     @apply bg-background text-foreground;
+    min-width: 320px;
   }
 
   h1,
@@ -107,47 +88,217 @@
   h4,
   h5,
   h6 {
-    font-family: var(--font-space-grotesk);
+    font-family: var(--font-geist);
+    text-wrap: balance;
+    letter-spacing: 0;
+  }
+
+  p {
+    text-wrap: pretty;
   }
 
   ::selection {
-    background: rgba(17, 181, 164, 0.26);
+    background: rgba(141, 238, 242, 0.22);
   }
 }
 
-@keyframes float-soft {
+/* ── Grain / noise texture ─────────────────────────────────────── */
+.echo-noise {
+  background-image:
+    linear-gradient(rgba(64, 45, 27, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(64, 45, 27, 0.035) 1px, transparent 1px);
+  background-size: 54px 54px;
+}
+
+/* ── Animated gradient orbs ───────────────────────────────────── */
+@keyframes echo-gradient-shift {
   0%,
   100% {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 0.8;
+  }
+  50% {
+    transform: translate3d(2%, -2%, 0) scale(1.04);
+    opacity: 1;
+  }
+}
+
+.echo-gradient-field {
+  animation: echo-gradient-shift 16s ease-in-out infinite;
+}
+
+/* ── Scan line ────────────────────────────────────────────────── */
+@keyframes echo-scan {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(100%);
+  }
+}
+
+.echo-scan::after {
+  animation: echo-scan 3.6s ease-in-out infinite;
+  background: linear-gradient(90deg, transparent, rgba(103, 232, 249, 0.22), transparent);
+  content: "";
+  inset: 0;
+  position: absolute;
+}
+
+/* ── Marquee ──────────────────────────────────────────────────── */
+@keyframes echo-marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.echo-marquee {
+  animation: echo-marquee 36s linear infinite;
+}
+
+/* ── Float animation ──────────────────────────────────────────── */
+@keyframes echo-float {
+  0%, 100% {
     transform: translateY(0px);
   }
   50% {
-    transform: translateY(-8px);
+    transform: translateY(-12px);
   }
 }
 
-@keyframes fade-up {
-  from {
-    opacity: 0;
-    transform: translateY(16px);
+.echo-float {
+  animation: echo-float 7s ease-in-out infinite;
+}
+
+.echo-float-delayed {
+  animation: echo-float 7s ease-in-out infinite;
+  animation-delay: -3.5s;
+}
+
+/* ── Pulse ring ───────────────────────────────────────────────── */
+@keyframes echo-pulse-ring {
+  0% {
+    transform: scale(1);
+    opacity: 0.5;
   }
+  70% {
+    transform: scale(1.6);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1.6);
+    opacity: 0;
+  }
+}
+
+.echo-pulse-ring::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  border: 1.5px solid currentColor;
+  animation: echo-pulse-ring 2.4s ease-out infinite;
+}
+
+/* ── Typing cursor ────────────────────────────────────────────── */
+@keyframes echo-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+.echo-cursor::after {
+  content: "";
+  display: inline-block;
+  width: 2px;
+  height: 1.1em;
+  background: currentColor;
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  animation: echo-blink 1s step-end infinite;
+}
+
+/* ── Shimmer / skeleton ───────────────────────────────────────── */
+@keyframes echo-shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.echo-shimmer {
+  background: linear-gradient(
+    90deg,
+    transparent 25%,
+    rgba(15, 118, 110, 0.06) 50%,
+    transparent 75%
+  );
+  background-size: 200% 100%;
+  animation: echo-shimmer 2.4s ease-in-out infinite;
+}
+
+/* ── Glow effect for hero ─────────────────────────────────────── */
+@keyframes echo-glow {
+  0%, 100% {
+    filter: drop-shadow(0 0 16px rgba(15, 118, 110, 0.2));
+  }
+  50% {
+    filter: drop-shadow(0 0 28px rgba(15, 118, 110, 0.35));
+  }
+}
+
+.echo-glow {
+  animation: echo-glow 4s ease-in-out infinite;
+}
+
+/* ── Aurora gradient ──────────────────────────────────────────── */
+@keyframes echo-aurora {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+.echo-aurora {
+  background-size: 200% 200%;
+  animation: echo-aurora 12s ease-in-out infinite;
+}
+
+/* ── Stagger entry utility ────────────────────────────────────── */
+.echo-stagger-children > * {
+  opacity: 0;
+  transform: translateY(16px);
+  animation: echo-stagger-in 0.5s ease forwards;
+}
+
+@keyframes echo-stagger-in {
   to {
     opacity: 1;
     transform: translateY(0);
   }
 }
 
-.animate-float-soft {
-  animation: float-soft 7s ease-in-out infinite;
-}
+.echo-stagger-children > *:nth-child(1) { animation-delay: 0s; }
+.echo-stagger-children > *:nth-child(2) { animation-delay: 0.08s; }
+.echo-stagger-children > *:nth-child(3) { animation-delay: 0.16s; }
+.echo-stagger-children > *:nth-child(4) { animation-delay: 0.24s; }
+.echo-stagger-children > *:nth-child(5) { animation-delay: 0.32s; }
+.echo-stagger-children > *:nth-child(6) { animation-delay: 0.40s; }
 
-.animate-fade-up {
-  animation: fade-up 0.65s ease-out both;
-}
-
-.animate-fade-up-delay {
-  animation: fade-up 0.65s ease-out 0.12s both;
-}
-
-.animate-fade-up-delay-2 {
-  animation: fade-up 0.65s ease-out 0.22s both;
+/* ── Reduced motion ──────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.001ms !important;
+  }
 }
