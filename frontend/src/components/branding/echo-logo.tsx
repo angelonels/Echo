@@ -7,39 +7,45 @@ type EchoLogoProps = {
   href?: string
   className?: string
   markClassName?: string
+  imageClassName?: string
   compact?: boolean
+  showDescriptor?: boolean
+  priority?: boolean
 }
 
 export function EchoLogo({
   href = "/",
   className,
   markClassName,
+  imageClassName,
   compact = false,
+  showDescriptor = false,
+  priority = true,
 }: EchoLogoProps) {
   const content = (
     <span className={cn("inline-flex items-center gap-3", className)}>
       <span className={cn("relative flex shrink-0 items-center justify-center", markClassName)}>
         {compact ? (
           <Image
-            src="/brand/echo-mark-v2.png"
+            src="/brand/echo-mark-final.png"
             alt="Echo"
-            width={34}
-            height={34}
-            className="h-[34px] w-[34px] object-contain drop-shadow-[0_10px_24px_rgba(17,181,164,0.22)]"
-            priority
+            width={64}
+            height={64}
+            className={cn("h-9 w-9 object-contain", imageClassName)}
+            priority={priority}
           />
         ) : (
           <Image
-            src="/brand/echo-wordmark-v2.png"
+            src="/brand/echo-logo-final.png"
             alt="Echo"
-            width={160}
-            height={52}
-            className="h-[44px] w-auto object-contain drop-shadow-[0_12px_30px_rgba(17,181,164,0.18)]"
-            priority
+            width={512}
+            height={144}
+            className={cn("h-10 w-auto object-contain", imageClassName)}
+            priority={priority}
           />
         )}
       </span>
-      {!compact ? <span className="text-sm text-muted-foreground">AI support Agent</span> : null}
+      {showDescriptor && !compact ? <span className="text-sm text-muted-foreground">AI support agent</span> : null}
     </span>
   )
 
