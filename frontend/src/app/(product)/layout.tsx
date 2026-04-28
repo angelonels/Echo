@@ -1,9 +1,3 @@
-import { AppShell } from "@/components/layout/app-shell"
-
-export default function ProductLayout({
-  children,
-}: {
-  children: React.ReactNode
-}) {
-  return <AppShell>{children}</AppShell>
+export default function LegacyProductLayout({ children }: { children: React.ReactNode }) {
+  return children
 }
