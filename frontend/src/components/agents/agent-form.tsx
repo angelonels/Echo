@@ -21,24 +21,36 @@ export function AgentForm({ initialValues }: { initialValues?: AgentDetail }) {
   const form = useForm<CreateAgentValues>({
     resolver: zodResolver(createAgentSchema),
     defaultValues: initialValues
-      ? {
-          name: initialValues.name,
-          description: initialValues.description,
-          greetingMessage: initialValues.greetingMessage,
-          primaryColor: initialValues.primaryColor,
-          launcherPosition: initialValues.launcherPosition,
-        }
-      : {
-          name: "",
-          description: "",
-          greetingMessage: "",
-          primaryColor: "#11b5a4",
-          launcherPosition: "right",
-        },
+        ? {
+            name: initialValues.name,
+            description: initialValues.description,
+            welcomeMessage: initialValues.welcomeMessage ?? initialValues.greetingMessage ?? "",
+            fallbackMessage:
+              initialValues.fallbackMessage ??
+              "I do not have enough information from the available support docs to answer that confidently.",
+            baseInstructions:
+              initialValues.baseInstructions ?? "Answer only from uploaded documents. Do not invent policies.",
+            status: initialValues.status,
+            retrievalMode: initialValues.retrievalMode ?? "auto",
+            temperature: initialValues.temperature ?? 0.2,
+            maxContextChunks: initialValues.maxContextChunks ?? 6,
+          }
+        : {
+            name: "",
+            description: "",
+            welcomeMessage: "Hi. Ask me anything about this product.",
+            fallbackMessage:
+              "I do not have enough information from the available support docs to answer that confidently.",
+            baseInstructions: "Answer only from uploaded documents. Do not invent policies.",
+            status: "active",
+            retrievalMode: "auto",
+            temperature: 0.2,
+            maxContextChunks: 6,
+          },
   })
-  const primaryColor = useWatch({
+  const temperature = useWatch({
     control: form.control,
-    name: "primaryColor",
+    name: "temperature",
   })
 
   function onSubmit(values: CreateAgentValues) {
@@ -50,7 +62,7 @@ export function AgentForm({ initialValues }: { initialValues?: AgentDetail }) {
       }
 
       const result = await createAgent(values)
-      router.push(`/agents/${result.id}`)
+        router.push(`/app/agents/${result.id}`)
     })
   }
 
@@ -60,73 +72,66 @@ export function AgentForm({ initialValues }: { initialValues?: AgentDetail }) {
         <Field label="Agent name" error={form.formState.errors.name?.message}>
           <Input {...form.register("name")} placeholder="Support Command" />
         </Field>
-        <Field label="Primary color" error={form.formState.errors.primaryColor?.message}>
-          <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-3 py-2">
-            <input
-              type="color"
-              value={primaryColor}
-              onChange={(event) => {
-                form.setValue("primaryColor", event.target.value, {
-                  shouldDirty: true,
-                  shouldTouch: true,
-                  shouldValidate: true,
-                })
-              }}
-              className="h-10 w-12 cursor-pointer rounded-xl border border-white/10 bg-transparent"
-            />
-            <Input
-              {...form.register("primaryColor")}
-              placeholder="#11b5a4"
-              className="border-none bg-transparent px-0 shadow-none focus-visible:ring-0"
-            />
-          </div>
+        <Field label="Retrieval mode" error={form.formState.errors.retrievalMode?.message}>
+          <select
+            {...form.register("retrievalMode")}
+            className="h-11 rounded-md border border-input bg-card px-3 text-sm outline-none"
+          >
+            <option value="auto">Auto</option>
+            <option value="naive">Naive</option>
+            <option value="multi_query">Multi-query</option>
+            <option value="hybrid">Hybrid</option>
+          </select>
         </Field>
       </div>
 
       <Field label="Description" error={form.formState.errors.description?.message}>
         <textarea
           {...form.register("description")}
-          className="min-h-28 w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm outline-none transition focus:border-[var(--echo-accent)] focus:ring-2 focus:ring-[rgba(17,181,164,0.18)]"
+          className="min-h-24 w-full rounded-md border border-input bg-card px-4 py-3 text-sm outline-none transition focus:ring-2 focus:ring-ring"
           placeholder="Handles support, warranty, and technician scheduling questions."
         />
       </Field>
 
       <Field
-        label="Greeting message"
-        error={form.formState.errors.greetingMessage?.message}
+        label="Welcome message"
+        error={form.formState.errors.welcomeMessage?.message}
       >
         <textarea
-          {...form.register("greetingMessage")}
-          className="min-h-28 w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm outline-none transition focus:border-[var(--echo-accent)] focus:ring-2 focus:ring-[rgba(17,181,164,0.18)]"
+          {...form.register("welcomeMessage")}
+          className="min-h-24 w-full rounded-md border border-input bg-card px-4 py-3 text-sm outline-none transition focus:ring-2 focus:ring-ring"
           placeholder="Hi, I am Echo. Ask me about warranty terms, visits, and product support."
         />
       </Field>
 
-      <fieldset className="grid gap-3">
-        <legend className="text-sm font-medium text-white">Launcher position</legend>
-        <div className="grid gap-3 sm:grid-cols-2">
-          {(["right", "left"] as const).map((position) => (
-            <label
-              key={position}
-              className="flex cursor-pointer items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-zinc-200 transition hover:border-white/20"
-            >
-              <span className="capitalize">{position}</span>
-              <input
-                type="radio"
-                value={position}
-                {...form.register("launcherPosition")}
-                className="size-4 accent-[var(--echo-accent)]"
-              />
-            </label>
-          ))}
-        </div>
-      </fieldset>
+      <Field label="Fallback message" error={form.formState.errors.fallbackMessage?.message}>
+        <textarea
+          {...form.register("fallbackMessage")}
+          className="min-h-24 w-full rounded-md border border-input bg-card px-4 py-3 text-sm outline-none transition focus:ring-2 focus:ring-ring"
+        />
+      </Field>
+
+      <Field label="Base instructions" error={form.formState.errors.baseInstructions?.message}>
+        <textarea
+          {...form.register("baseInstructions")}
+          className="min-h-28 w-full rounded-md border border-input bg-card px-4 py-3 text-sm outline-none transition focus:ring-2 focus:ring-ring"
+        />
+      </Field>
+
+      <div className="grid gap-5 lg:grid-cols-2">
+        <Field label={`Temperature (${temperature})`} error={form.formState.errors.temperature?.message}>
+          <Input type="number" step="0.1" min="0" max="2" {...form.register("temperature")} />
+        </Field>
+        <Field label="Max context chunks" error={form.formState.errors.maxContextChunks?.message}>
+          <Input type="number" min="1" max="20" {...form.register("maxContextChunks")} />
+        </Field>
+      </div>
 
       <div className="flex flex-wrap items-center gap-3">
         <Button
           type="submit"
           size="lg"
-          className="rounded-2xl bg-[var(--echo-accent)] px-5 text-slate-950 hover:bg-[var(--echo-accent-strong)]"
+          className="rounded-md px-5"
           disabled={pending}
         >
           {pending
@@ -158,7 +163,7 @@ function Field({
 }) {
   return (
     <label className="grid gap-2">
-      <span className="text-sm font-medium text-white">{label}</span>
+      <span className="text-sm font-medium text-foreground">{label}</span>
       {children}
       {error ? <span className="text-xs text-rose-400">{error}</span> : null}
     </label>
