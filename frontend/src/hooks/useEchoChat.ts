@@ -9,6 +9,8 @@ export type EchoMessage = {
   text: string
   confidenceScore?: number
   retrievalStrategy?: string
+  citations?: Array<{ documentTitle: string; excerpt: string }>
+  traceId?: string
 }
 
 export type XRayStatus =
@@ -24,6 +26,8 @@ export type XRayEventContent = {
   status: XRayStatus
   queries?: string[]
   docs?: { content: string; score: string }[]
+  citations?: Array<{ documentTitle: string; excerpt: string }>
+  traceId?: string
   passedGrading?: boolean
   retrievalStrategy?: string
   latencyMs?: number
@@ -36,9 +40,9 @@ function toEchoMessage(
 ): EchoMessage {
   return {
     id: message.id,
-    role: message.role === "USER" ? "user" : "bot",
+    role: message.role === "user" ? "user" : "bot",
     text: message.content,
-    confidenceScore: message.confidenceScore,
+    confidenceScore: message.confidence ?? message.confidenceScore,
     retrievalStrategy: message.retrievalStrategy,
   }
 }
@@ -112,11 +116,13 @@ export function useEchoChat(
       try {
         const response = await sendPlaygroundMessage(agentId, conversationId, query)
         const assistantMessage: EchoMessage = {
-          id: response.message.id,
+          id: response.messageId,
           role: "bot",
-          text: response.message.content,
-          confidenceScore: response.message.confidenceScore,
-          retrievalStrategy: response.meta.retrievalStrategy,
+          text: response.answer,
+          confidenceScore: response.confidence,
+          retrievalStrategy: response.retrievalStrategy,
+          citations: response.citations,
+          traceId: response.traceId,
         }
 
         setMessages((prev) => [...prev, assistantMessage])
@@ -130,15 +136,18 @@ export function useEchoChat(
           docs: [
             {
               content:
+                response.citations[0]?.excerpt ??
                 "Matched retrieval chunks from uploaded policies and service documentation.",
-              score: response.message.confidenceScore?.toFixed(2) ?? "0.80",
+              score: response.confidence.toFixed(2),
             },
           ],
-          passedGrading: !response.meta.fallbackUsed,
-          retrievalStrategy: response.meta.retrievalStrategy,
-          latencyMs: response.meta.latencyMs,
-          confidenceScore: response.message.confidenceScore,
-          fallbackUsed: response.meta.fallbackUsed,
+          citations: response.citations,
+          traceId: response.traceId,
+          passedGrading: response.responseType !== "fallback",
+          retrievalStrategy: response.retrievalStrategy,
+          latencyMs: response.latencyMs,
+          confidenceScore: response.confidence,
+          fallbackUsed: response.responseType === "fallback",
         })
       } catch {
         setMessages((prev) => [

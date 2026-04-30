@@ -39,6 +39,7 @@ export function IngestionDropzone({
       "application/pdf": [".pdf"],
       "text/plain": [".txt"],
       "text/markdown": [".md"],
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document": [".docx"],
     },
     maxFiles: 1,
     disabled: uploadState === "uploading",
@@ -56,7 +57,7 @@ export function IngestionDropzone({
 
     try {
       const response = await uploadDocument(agentId, file)
-      setLatestFileName(response.document.fileName)
+      setLatestFileName(response.document.displayName ?? response.document.fileName ?? response.document.originalFilename ?? file.name)
       setProgress(100)
       setUploadState("success")
       window.setTimeout(() => {
@@ -73,22 +74,22 @@ export function IngestionDropzone({
 
   return (
     <div className="grid gap-6 lg:grid-cols-[0.94fr_1.06fr]">
-      <div className="rounded-[30px] border border-white/10 bg-[rgba(7,16,26,0.84)] p-6 shadow-[0_30px_100px_-65px_rgba(17,181,164,0.4)]">
+      <div className="rounded-lg border border-border bg-card p-6">
         <div className="mb-5 flex items-center justify-between">
           <div>
             <h2 className="flex items-center gap-2 text-lg font-semibold text-white">
-              <UploadCloud className="size-5 text-[var(--echo-accent)]" />
+              <UploadCloud className="size-5 text-primary" />
               Ingest knowledge
             </h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Upload PDF, TXT, or Markdown files and queue them for indexing.
+              Upload PDF, TXT, Markdown, or DOCX files and queue them for indexing.
             </p>
           </div>
 
           {file && uploadState === "idle" ? (
             <button
               onClick={handleUpload}
-              className="rounded-full bg-[var(--echo-accent)] px-4 py-2 text-xs font-semibold text-slate-950 transition hover:bg-[var(--echo-accent-strong)]"
+              className="rounded-md bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground transition hover:bg-primary/90"
             >
               Process document
             </button>
@@ -99,18 +100,18 @@ export function IngestionDropzone({
           {...getRootProps()}
           className={`group relative flex cursor-pointer flex-col items-center justify-center rounded-[28px] border-2 border-dashed px-6 py-10 text-center transition-all duration-300 ${
             isDragActive
-              ? "border-[var(--echo-accent)] bg-[rgba(17,181,164,0.08)]"
-              : "border-white/10 bg-white/5 hover:border-white/20 hover:bg-white/6"
+              ? "border-primary bg-secondary"
+              : "border-border bg-background hover:border-primary/40 hover:bg-secondary/60"
           } ${uploadState === "uploading" ? "pointer-events-none opacity-80" : ""}`}
         >
           <input {...getInputProps()} />
 
           {uploadState === "uploading" ? (
             <div className="flex w-full max-w-sm flex-col items-center gap-4">
-              <Loader2 className="size-8 animate-spin text-[var(--echo-accent)]" />
+              <Loader2 className="size-8 animate-spin text-primary" />
               <div className="w-full space-y-2">
                 <div className="flex justify-between text-xs text-zinc-400">
-                  <span>Chunking, embedding, and indexing</span>
+                    <span>Uploading and queuing</span>
                   <span>{progress}%</span>
                 </div>
                 <Progress value={progress} className="h-2 bg-white/10" />
@@ -130,23 +131,23 @@ export function IngestionDropzone({
             </div>
           ) : file ? (
             <div className="space-y-3">
-              <div className="mx-auto flex size-14 items-center justify-center rounded-2xl border border-white/10 bg-white/6">
-                <FileText className="size-6 text-[var(--echo-accent)]" />
+              <div className="mx-auto flex size-14 items-center justify-center rounded-md border border-border bg-card">
+                <FileText className="size-6 text-primary" />
               </div>
-              <p className="text-sm font-semibold text-zinc-200">{file.name}</p>
+              <p className="text-sm font-semibold">{file.name}</p>
               <p className="text-xs text-zinc-500">Ready to queue for indexing</p>
             </div>
           ) : (
             <div className="space-y-3">
-              <div className="mx-auto flex size-14 items-center justify-center rounded-full border border-white/10 bg-white/6 transition group-hover:scale-105">
-                <UploadCloud className="size-6 text-zinc-400 transition group-hover:text-[var(--echo-accent)]" />
+              <div className="mx-auto flex size-14 items-center justify-center rounded-md border border-border bg-card transition group-hover:scale-105">
+                <UploadCloud className="size-6 text-muted-foreground transition group-hover:text-primary" />
               </div>
               <div>
                 <p className="text-sm font-semibold text-zinc-200">
-                  Drag and drop or <span className="text-[var(--echo-accent)]">browse</span>
+                  Drag and drop or <span className="text-primary">browse</span>
                 </p>
                 <p className="mt-1 text-xs text-zinc-500">
-                  Supports PDF, plain text, and Markdown files
+                  Supports PDF, plain text, Markdown, and DOCX files
                 </p>
               </div>
             </div>
@@ -154,9 +155,9 @@ export function IngestionDropzone({
         </div>
       </div>
 
-      <div className="rounded-[30px] border border-white/10 bg-[rgba(7,16,26,0.84)] p-6">
+      <div className="rounded-lg border border-border bg-card p-6">
         <div className="mb-5">
-          <h3 className="text-lg font-semibold text-white">Document status</h3>
+          <h3 className="text-lg font-semibold">Document status</h3>
           <p className="mt-1 text-sm text-muted-foreground">
             Current ingestion queue and version state for this agent.
           </p>
@@ -167,10 +168,10 @@ export function IngestionDropzone({
             documents.map((document) => (
               <div
                 key={document.id}
-                className="flex flex-col gap-3 rounded-2xl border border-white/8 bg-white/5 p-4 sm:flex-row sm:items-center sm:justify-between"
+                className="flex flex-col gap-3 rounded-md border border-border bg-background p-4 sm:flex-row sm:items-center sm:justify-between"
               >
                 <div>
-                  <p className="text-sm font-medium text-white">{document.fileName}</p>
+                  <p className="text-sm font-medium">{document.displayName ?? document.fileName ?? document.originalFilename}</p>
                   <p className="mt-1 text-xs text-zinc-500">
                     {(document.sizeBytes / 1024).toFixed(0)} KB
                     {" · "}
@@ -182,9 +183,9 @@ export function IngestionDropzone({
                 </div>
                 <span
                   className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ${
-                    document.status === "READY"
+                    document.status === "ready"
                       ? "bg-emerald-400/10 text-emerald-300"
-                      : document.status === "FAILED"
+                      : document.status === "failed"
                         ? "bg-rose-400/10 text-rose-300"
                         : "bg-amber-400/10 text-amber-200"
                   }`}
@@ -194,7 +195,7 @@ export function IngestionDropzone({
               </div>
             ))
           ) : (
-            <div className="rounded-2xl border border-dashed border-white/10 bg-white/4 p-6 text-sm text-muted-foreground">
+            <div className="rounded-md border border-dashed border-border bg-background p-6 text-sm text-muted-foreground">
               No documents uploaded yet. Start with your FAQ, warranty, or operations guide.
             </div>
           )}
