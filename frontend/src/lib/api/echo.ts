@@ -1,11 +1,10 @@
+import { auth } from "@clerk/nextjs/server"
 import { z } from "zod"
 
 import {
   agentDetailSchema,
   agentSummarySchema,
   analyticsSummarySchema,
-  authLoginResponseSchema,
-  authSignupResponseSchema,
   conversationSummariesSchema,
   createAgentSchema,
   documentListSchema,
@@ -17,16 +16,12 @@ import {
   type AgentDetail,
   type AgentSummary,
   type AnalyticsSummary,
-  type AuthFormValues,
-  type Company,
   type ConversationSummary,
   type CreateAgentValues,
   type DocumentRecord,
   type PlaygroundConversation,
   type PlaygroundChatResponse,
-  type SignupFormValues,
   type TopQuestion,
-  type User,
   type WidgetConfig,
 } from "@/lib/api/schemas"
 import {
@@ -34,18 +29,29 @@ import {
   mockAgentDetails,
   mockAgents,
   mockAnalyticsSummary,
-  mockCompany,
   mockConversationSummaries,
   mockConversations,
   mockDocuments,
   mockTopQuestions,
-  mockUser,
   mockWidgetConfigs,
 } from "@/lib/api/mock-data"
 
 const apiBaseUrl = process.env.NEXT_PUBLIC_ECHO_API_URL
 
 type SourceTagged<T> = T & { source: "api" | "mock" }
+
+async function getAccessToken() {
+  if (typeof window !== "undefined") {
+    return window.Clerk?.session?.getToken() ?? null
+  }
+
+  try {
+    const session = await auth()
+    return await session.getToken()
+  } catch {
+    return null
+  }
+}
 
 async function parseResponse<T>(response: Response, schema: z.ZodType<T>): Promise<T> {
   const json = await response.json()
@@ -63,10 +69,12 @@ async function request<T>(
   }
 
   try {
+    const accessToken = await getAccessToken()
     const response = await fetch(`${apiBaseUrl}${path}`, {
       ...init,
       headers: {
         "Content-Type": "application/json",
+        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
         ...(init?.headers ?? {}),
       },
       cache: "no-store",
@@ -83,88 +91,40 @@ async function request<T>(
   }
 }
 
-export async function signup(
-  values: SignupFormValues
-): Promise<SourceTagged<{ user: User; company: Company; redirectTo: string }>> {
-  const response = await request(
-    "/api/v1/auth/signup",
-    authSignupResponseSchema,
-    {
-      user: mockUser,
-      company: mockCompany,
-      tokens: {
-        accessToken: "mock-access-token",
-        refreshToken: "mock-refresh-token",
-      },
-    },
-    {
-      method: "POST",
-      body: JSON.stringify(values),
-    }
-  )
-
-  return {
-    user: response.user,
-    company: response.company,
-    redirectTo: "/dashboard",
-    source: response.source,
-  }
-}
-
-export async function login(
-  values: AuthFormValues
-): Promise<SourceTagged<{ user: User; redirectTo: string }>> {
-  const response = await request(
-    "/api/v1/auth/login",
-    authLoginResponseSchema,
-    {
-      user: mockUser,
-      tokens: {
-        accessToken: "mock-access-token",
-        refreshToken: "mock-refresh-token",
-      },
-    },
-    {
-      method: "POST",
-      body: JSON.stringify(values),
-    }
-  )
-
-  return {
-    user: response.user,
-    redirectTo: "/dashboard",
-    source: response.source,
-  }
-}
-
 export async function getAgents(): Promise<SourceTagged<{ items: AgentSummary[] }>> {
   return request(
     "/api/v1/agents",
     z.object({ items: z.array(agentSummarySchema) }),
-    { items: mockAgents }
+    { items: normalizeMockAgents() }
   )
 }
 
 export async function getAgent(agentId: string): Promise<SourceTagged<AgentDetail>> {
-  const fallback = mockAgentDetails[agentId] ?? mockAgentDetails[mockAgents[0].id]
+  const fallback = normalizeMockAgent(mockAgentDetails[agentId] ?? mockAgentDetails[mockAgents[0].id])
   return request(`/api/v1/agents/${agentId}`, agentDetailSchema, fallback)
 }
 
-export async function createAgent(
-  values: CreateAgentValues
-): Promise<SourceTagged<AgentDetail>> {
+export async function createAgent(values: CreateAgentValues): Promise<SourceTagged<AgentDetail>> {
   const payload = createAgentSchema.parse(values)
   const fallback: AgentDetail = {
     id: "agt_new_launchpad",
-    publicAgentKey: "echo_pub_new_launchpad",
+    publicAgentKey: "agent_pub_new_launchpad",
     allowedDomains: [],
-    isActive: true,
+    documentCount: 0,
+    conversationCount: 0,
+    updatedAt: new Date().toISOString(),
+    isActive: payload.status === "active",
+    visibility: "private",
+    modelProvider: "bedrock",
+    generationModel: "amazon.nova-lite-v1:0",
+    embeddingModel: "amazon.titan-embed-text-v2:0",
+    createdAt: new Date().toISOString(),
     ...payload,
   }
 
   return request("/api/v1/agents", agentDetailSchema, fallback, {
     method: "POST",
-    body: JSON.stringify(values),
+    body: JSON.stringify(payload),
   })
 }
 
@@ -173,9 +133,9 @@ export async function updateAgent(
   values: Partial<CreateAgentValues>
 ): Promise<SourceTagged<AgentDetail>> {
   const fallback = {
-    ...(mockAgentDetails[agentId] ?? mockAgentDetails[mockAgents[0].id]),
-    ...values,
-  }
+    ...normalizeMockAgent(mockAgentDetails[agentId] ?? mockAgentDetails[mockAgents[0].id]),
+    ...createAgentSchema.partial().parse(values),
+  } satisfies AgentDetail
 
   return request(`/api/v1/agents/${agentId}`, agentDetailSchema, fallback, {
     method: "PATCH",
@@ -189,7 +149,7 @@ export async function getAgentDocuments(
   return request(
     `/api/v1/agents/${agentId}/documents`,
     documentListSchema,
-    { items: mockDocuments[agentId] ?? [] }
+    { items: normalizeMockDocuments(mockDocuments[agentId] ?? []) }
   )
 }
 
@@ -199,17 +159,16 @@ export async function uploadDocument(
 ): Promise<SourceTagged<{ document: DocumentRecord }>> {
   if (!apiBaseUrl) {
     return {
-      document: {
+      document: normalizeDocument({
         id: `doc_${Math.random().toString(36).slice(2, 8)}`,
         fileName: file.name,
         mimeType: file.type || "application/octet-stream",
         sizeBytes: file.size,
-        status: "UPLOADED",
+        status: "uploaded",
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
-        versionGroupKey: null,
-        errorMessage: null,
-      },
+        chunkCount: 0,
+      }),
       source: "mock",
     }
   }
@@ -218,9 +177,13 @@ export async function uploadDocument(
   formData.append("file", file)
 
   try {
+    const accessToken = await getAccessToken()
     const response = await fetch(`${apiBaseUrl}/api/v1/agents/${agentId}/documents`, {
       method: "POST",
       body: formData,
+      headers: {
+        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+      },
     })
     if (!response.ok) {
       throw new Error(`Upload failed with ${response.status}`)
@@ -231,17 +194,16 @@ export async function uploadDocument(
     return { document, source: "api" }
   } catch {
     return {
-      document: {
+      document: normalizeDocument({
         id: `doc_${Math.random().toString(36).slice(2, 8)}`,
         fileName: file.name,
         mimeType: file.type || "application/octet-stream",
         sizeBytes: file.size,
-        status: "UPLOADED",
+        status: "uploaded",
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
-        versionGroupKey: null,
-        errorMessage: null,
-      },
+        chunkCount: 0,
+      }),
       source: "mock",
     }
   }
@@ -253,7 +215,7 @@ export async function getPlaygroundConversation(
   return request(
     `/api/v1/agents/${agentId}/playground/conversations/con_preview`,
     playgroundConversationSchema,
-    mockConversations[agentId] ?? mockConversations[mockAgents[0].id]
+    normalizeConversation(mockConversations[agentId] ?? mockConversations[mockAgents[0].id])
   )
 }
 
@@ -265,12 +227,21 @@ export async function sendPlaygroundMessage(
   const assistant = buildAssistantReply(message)
   const fallback: PlaygroundChatResponse = {
     conversationId,
-    message: assistant,
-    meta: {
-      retrievalStrategy: assistant.retrievalStrategy ?? "MULTI_QUERY",
-      fallbackUsed: (assistant.retrievalStrategy ?? "MULTI_QUERY") === "FALLBACK",
-      latencyMs: 1180,
-    },
+    messageId: assistant.id,
+    answer: assistant.content,
+    responseType: assistant.retrievalStrategy === "FALLBACK" ? "fallback" : "grounded_answer",
+    confidence: assistant.confidenceScore ?? 0.78,
+    citations: [
+      {
+        documentId: "mock-doc",
+        documentTitle: "Demo knowledge base",
+        chunkId: "mock-chunk",
+        excerpt: "Matched retrieval chunks from uploaded policies and service documentation.",
+      },
+    ],
+    traceId: "00000000-0000-4000-8000-000000000000",
+    retrievalStrategy: assistant.retrievalStrategy?.toLowerCase() ?? "multi_query",
+    latencyMs: 1180,
   }
 
   return request(
@@ -318,7 +289,7 @@ export async function getWidgetConfig(
   agentId: string,
   agentKey?: string
 ): Promise<SourceTagged<WidgetConfig>> {
-  const detail = mockAgentDetails[agentId] ?? mockAgentDetails[mockAgents[0].id]
+  const detail = normalizeMockAgent(mockAgentDetails[agentId] ?? mockAgentDetails[mockAgents[0].id])
   return request(
     `/api/v1/widget/config/${agentKey ?? detail.publicAgentKey}`,
     widgetConfigSchema,
@@ -327,15 +298,76 @@ export async function getWidgetConfig(
 }
 
 export async function getDashboardSnapshot() {
-  const [agents, summary] = await Promise.all([
-    getAgents(),
-    getAnalyticsSummary(mockAgents[0].id),
-  ])
+  const agents = await getAgents()
 
   return {
     agents,
-    summary,
-    company: mockCompany,
-    currentUser: mockUser,
+    summary: {
+      totalConversations: agents.items.reduce((sum, agent) => sum + agent.conversationCount, 0),
+      totalMessages: 0,
+      fallbackRate: 0,
+      avgConfidence: 0,
+      source: agents.source,
+    },
+    currentUser: null,
   }
+}
+
+function normalizeMockAgents(): AgentSummary[] {
+  return mockAgents.map((agent) => agentSummarySchema.parse({
+    ...agent,
+    status: agent.isActive ? "active" : "paused",
+    updatedAt: agent.updatedAt,
+  }))
+}
+
+function normalizeMockAgent(agent: Record<string, unknown>): AgentDetail {
+  return agentDetailSchema.parse({
+    status: agent.isActive ? "active" : "paused",
+    visibility: "private",
+    welcomeMessage: agent.greetingMessage ?? "Hi. Ask me anything about this product.",
+    fallbackMessage: "I do not have enough information from the available support docs to answer that confidently.",
+    baseInstructions: "Answer only from uploaded documents.",
+    retrievalMode: "auto",
+    modelProvider: "bedrock",
+    generationModel: "amazon.nova-lite-v1:0",
+    embeddingModel: "amazon.titan-embed-text-v2:0",
+    documentCount: 0,
+    conversationCount: 0,
+    updatedAt: new Date().toISOString(),
+    isActive: true,
+    allowedDomains: [],
+    ...agent,
+  })
+}
+
+function normalizeDocument(document: Record<string, unknown>): DocumentRecord {
+  return documentSchema.parse({
+    chunkCount: 0,
+    ...document,
+    displayName: document.displayName ?? document.fileName ?? document.originalFilename,
+    originalFilename: document.originalFilename ?? document.fileName ?? document.displayName,
+  })
+}
+
+function normalizeMockDocuments(documents: Array<Record<string, unknown>>): DocumentRecord[] {
+  return documents.map((document) => normalizeDocument({
+    ...document,
+    status: String(document.status ?? "uploaded").toLowerCase(),
+  }))
+}
+
+function normalizeConversation(conversation: PlaygroundConversation): PlaygroundConversation {
+  return playgroundConversationSchema.parse({
+    ...conversation,
+    channel: "playground",
+    messages: conversation.messages.map((message) => {
+      const role = String(message.role)
+      return {
+        ...message,
+        role: role === "user" || role === "assistant" ? role : role === "USER" ? "user" : "assistant",
+        confidence: message.confidence ?? message.confidenceScore,
+      }
+    }),
+  })
 }

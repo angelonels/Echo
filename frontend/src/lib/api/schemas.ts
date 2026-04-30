@@ -2,108 +2,108 @@ import { z } from "zod"
 
 export const userSchema = z.object({
   id: z.string(),
-  companyId: z.string(),
-  email: z.email(),
-  fullName: z.string(),
-  role: z.enum(["OWNER", "ADMIN"]),
+  email: z.string().email().nullable().optional(),
+  name: z.string().nullable().optional(),
+  imageUrl: z.string().nullable().optional(),
 })
 
-export const companySchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  slug: z.string(),
-})
+export const agentStatusSchema = z.enum(["draft", "active", "paused", "archived"])
+export const retrievalModeSchema = z.enum(["auto", "naive", "multi_query", "hybrid"])
 
-export const tokenPairSchema = z.object({
-  accessToken: z.string(),
-  refreshToken: z.string(),
-})
-
-export const authSignupResponseSchema = z.object({
-  user: userSchema,
-  company: companySchema,
-  tokens: tokenPairSchema,
-})
-
-export const authLoginResponseSchema = z.object({
-  user: userSchema,
-  tokens: tokenPairSchema,
-})
-
-export const authFormSchema = z.object({
-  email: z.email("Enter a valid work email."),
-  password: z
-    .string()
-    .min(8, "Password must be at least 8 characters.")
-    .regex(/[A-Z]/, "Password needs an uppercase letter.")
-    .regex(/[a-z]/, "Password needs a lowercase letter.")
-    .regex(/[0-9]/, "Password needs a number."),
-})
-
-export const signupFormSchema = authFormSchema.extend({
-  companyName: z.string().min(2, "Company name is required."),
-  fullName: z.string().min(2, "Full name is required."),
-})
-
-export const launcherPositionSchema = z.enum(["left", "right"])
+export const allowedDomainSchema = z.union([
+  z.string(),
+  z.object({
+    id: z.string(),
+    domain: z.string(),
+  }),
+])
 
 export const agentSummarySchema = z.object({
   id: z.string(),
   name: z.string(),
+  description: z.string().nullable().optional(),
   publicAgentKey: z.string(),
-  isActive: z.boolean(),
-  documentCount: z.number(),
-  conversationCount: z.number(),
+  status: agentStatusSchema,
+  visibility: z.string().optional(),
+  welcomeMessage: z.string().nullable().optional(),
+  retrievalMode: retrievalModeSchema.optional(),
+  modelProvider: z.string().optional(),
+  generationModel: z.string().optional(),
+  embeddingModel: z.string().optional(),
+  documentCount: z.number().default(0),
+  conversationCount: z.number().default(0),
   updatedAt: z.string(),
+  isActive: z.boolean(),
 })
 
-export const agentDetailSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  description: z.string().default(""),
-  publicAgentKey: z.string(),
-  greetingMessage: z.string(),
-  primaryColor: z.string(),
-  launcherPosition: launcherPositionSchema,
-  allowedDomains: z.array(z.string()),
-  isActive: z.boolean(),
+export const agentDetailSchema = agentSummarySchema.extend({
+  baseInstructions: z.string().nullable().optional(),
+  fallbackMessage: z.string().nullable().optional(),
+  temperature: z.number().default(0.2),
+  maxContextChunks: z.number().default(6),
+  allowedDomains: z.array(allowedDomainSchema).default([]),
+  createdAt: z.string().optional(),
+  greetingMessage: z.string().optional(),
+  primaryColor: z.string().optional(),
+  launcherPosition: z.enum(["left", "right"]).optional(),
 })
 
 export const createAgentSchema = z.object({
   name: z.string().min(2, "Agent name is required."),
-  description: z.string().min(8, "Add a slightly more specific description."),
-  greetingMessage: z.string().min(8, "Greeting message is required."),
-  primaryColor: z.string().regex(/^#([0-9A-Fa-f]{6})$/, "Use a hex color."),
-  launcherPosition: launcherPositionSchema,
+  description: z.string().max(1000).optional().nullable(),
+  baseInstructions: z.string().max(4000).optional().nullable(),
+  welcomeMessage: z.string().min(1, "Welcome message is required.").max(500),
+  fallbackMessage: z.string().min(1, "Fallback message is required.").max(500),
+  status: agentStatusSchema.default("active"),
+  retrievalMode: retrievalModeSchema.default("auto"),
+  temperature: z.coerce.number().min(0).max(2).default(0.2),
+  maxContextChunks: z.coerce.number().int().min(1).max(20).default(6),
 })
 
 export const documentStatusSchema = z.enum([
-  "UPLOADED",
-  "PROCESSING",
-  "READY",
-  "FAILED",
+  "uploaded",
+  "extracting",
+  "chunking",
+  "embedding",
+  "indexing",
+  "ready",
+  "failed",
 ])
 
 export const documentSchema = z.object({
   id: z.string(),
-  fileName: z.string(),
+  agentId: z.string().optional(),
+  originalFilename: z.string().optional(),
+  displayName: z.string().optional(),
+  fileName: z.string().optional(),
   mimeType: z.string().optional(),
   sizeBytes: z.number(),
   status: documentStatusSchema,
+  currentVersionId: z.string().nullable().optional(),
+  versionNumber: z.number().nullable().optional(),
+  chunkCount: z.number().default(0),
+  processingError: z.string().nullable().optional(),
+  errorMessage: z.string().nullable().optional(),
   createdAt: z.string(),
   updatedAt: z.string().optional(),
-  versionGroupKey: z.string().nullable().optional(),
-  errorMessage: z.string().nullable().optional(),
 })
 
 export const documentListSchema = z.object({
   items: z.array(documentSchema),
 })
 
+export const citationSchema = z.object({
+  documentId: z.string(),
+  documentTitle: z.string(),
+  chunkId: z.string(),
+  excerpt: z.string(),
+})
+
 export const playgroundMessageSchema = z.object({
   id: z.string(),
-  role: z.enum(["USER", "ASSISTANT"]),
+  role: z.enum(["user", "assistant", "system", "tool"]),
   content: z.string(),
+  confidence: z.number().optional(),
   confidenceScore: z.number().optional(),
   retrievalStrategy: z.string().optional(),
   createdAt: z.string().optional(),
@@ -111,30 +111,35 @@ export const playgroundMessageSchema = z.object({
 
 export const playgroundConversationSchema = z.object({
   id: z.string(),
-  source: z.enum(["PLAYGROUND", "WIDGET"]),
+  channel: z.enum(["playground", "widget"]).default("playground"),
   messages: z.array(playgroundMessageSchema),
 })
 
 export const playgroundChatResponseSchema = z.object({
   conversationId: z.string(),
-  message: playgroundMessageSchema,
-  meta: z.object({
-    retrievalStrategy: z.string(),
-    fallbackUsed: z.boolean(),
-    latencyMs: z.number(),
-  }),
+  messageId: z.string(),
+  answer: z.string(),
+  responseType: z.enum(["grounded_answer", "clarifying_question", "fallback", "unsafe_request_blocked"]),
+  confidence: z.number(),
+  citations: z.array(citationSchema),
+  traceId: z.string(),
+  retrievalStrategy: z.string(),
+  latencyMs: z.number(),
 })
 
 export const analyticsSummarySchema = z.object({
-  totalConversations: z.number(),
-  totalMessages: z.number(),
-  fallbackRate: z.number(),
-  avgConfidence: z.number(),
-  sentiment: z.object({
-    positive: z.number(),
-    neutral: z.number(),
-    negative: z.number(),
-  }),
+  totalConversations: z.number().default(0),
+  totalMessages: z.number().default(0),
+  fallbackRate: z.number().default(0),
+  avgConfidence: z.number().default(0),
+  avgLatencyMs: z.number().optional(),
+  sentiment: z
+    .object({
+      positive: z.number(),
+      neutral: z.number(),
+      negative: z.number(),
+    })
+    .default({ positive: 0, neutral: 0, negative: 0 }),
 })
 
 export const topQuestionSchema = z.object({
@@ -148,12 +153,12 @@ export const topQuestionsSchema = z.object({
 
 export const conversationSummarySchema = z.object({
   id: z.string(),
-  source: z.enum(["PLAYGROUND", "WIDGET"]),
+  source: z.enum(["playground", "widget"]).or(z.enum(["PLAYGROUND", "WIDGET"])),
   startedAt: z.string(),
   lastMessageAt: z.string(),
   messageCount: z.number(),
   avgConfidence: z.number(),
-  sentimentLabel: z.enum(["POSITIVE", "NEUTRAL", "NEGATIVE"]),
+  sentimentLabel: z.enum(["POSITIVE", "NEUTRAL", "NEGATIVE"]).optional(),
 })
 
 export const conversationSummariesSchema = z.object({
@@ -165,15 +170,13 @@ export const widgetConfigSchema = z.object({
   greetingMessage: z.string(),
   theme: z.object({
     primaryColor: z.string(),
-    position: launcherPositionSchema,
+    position: z.enum(["left", "right"]),
   }),
 })
 
-export type AuthFormValues = z.infer<typeof authFormSchema>
-export type SignupFormValues = z.infer<typeof signupFormSchema>
-export type CreateAgentValues = z.infer<typeof createAgentSchema>
+export type CreateAgentValues = z.input<typeof createAgentSchema>
 export type User = z.infer<typeof userSchema>
-export type Company = z.infer<typeof companySchema>
+export type Company = { id: string; name: string; slug: string }
 export type AgentSummary = z.infer<typeof agentSummarySchema>
 export type AgentDetail = z.infer<typeof agentDetailSchema>
 export type DocumentRecord = z.infer<typeof documentSchema>

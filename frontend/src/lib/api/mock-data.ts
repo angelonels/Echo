@@ -14,10 +14,9 @@ import type {
 
 export const mockUser: User = {
   id: "usr_echo_owner",
-  companyId: "cmp_northstar",
   email: "ops@northstarhvac.com",
-  fullName: "Maya Patel",
-  role: "OWNER",
+  name: "Maya Patel",
+  imageUrl: null,
 }
 
 export const mockCompany: Company = {
@@ -31,6 +30,9 @@ export const mockAgents: AgentSummary[] = [
     id: "agt_support_core",
     name: "Support Command",
     publicAgentKey: "echo_pub_support_core",
+    status: "active",
+    visibility: "private",
+    retrievalMode: "auto",
     isActive: true,
     documentCount: 18,
     conversationCount: 412,
@@ -40,6 +42,9 @@ export const mockAgents: AgentSummary[] = [
     id: "agt_aftercare",
     name: "Aftercare Assistant",
     publicAgentKey: "echo_pub_aftercare",
+    status: "active",
+    visibility: "private",
+    retrievalMode: "auto",
     isActive: true,
     documentCount: 9,
     conversationCount: 131,
@@ -49,6 +54,9 @@ export const mockAgents: AgentSummary[] = [
     id: "agt_installations",
     name: "Install Desk",
     publicAgentKey: "echo_pub_install_desk",
+    status: "paused",
+    visibility: "private",
+    retrievalMode: "auto",
     isActive: false,
     documentCount: 4,
     conversationCount: 28,
@@ -65,6 +73,18 @@ export const mockAgentDetails: Record<string, AgentDetail> = {
     publicAgentKey: "echo_pub_support_core",
     greetingMessage:
       "Hi, I am Echo for Northstar HVAC. I can help with service windows, warranty terms, and installation questions.",
+    welcomeMessage:
+      "Hi, I am Echo for Northstar HVAC. I can help with service windows, warranty terms, and installation questions.",
+    fallbackMessage:
+      "I do not have enough information from the available support docs to answer that confidently.",
+    status: "active",
+    visibility: "private",
+    retrievalMode: "auto",
+    temperature: 0.2,
+    maxContextChunks: 6,
+    documentCount: 18,
+    conversationCount: 412,
+    updatedAt: "2026-04-22T10:15:00.000Z",
     primaryColor: "#11b5a4",
     launcherPosition: "right",
     allowedDomains: ["northstarhvac.com", "help.northstarhvac.com"],
@@ -78,6 +98,18 @@ export const mockAgentDetails: Record<string, AgentDetail> = {
     publicAgentKey: "echo_pub_aftercare",
     greetingMessage:
       "Welcome back. Ask about service plans, follow-up maintenance, or replacement parts.",
+    welcomeMessage:
+      "Welcome back. Ask about service plans, follow-up maintenance, or replacement parts.",
+    fallbackMessage:
+      "I do not have enough information from the available support docs to answer that confidently.",
+    status: "active",
+    visibility: "private",
+    retrievalMode: "auto",
+    temperature: 0.2,
+    maxContextChunks: 6,
+    documentCount: 9,
+    conversationCount: 131,
+    updatedAt: "2026-04-21T15:45:00.000Z",
     primaryColor: "#0f8cf0",
     launcherPosition: "right",
     allowedDomains: ["northstarhvac.com"],
@@ -91,6 +123,18 @@ export const mockAgentDetails: Record<string, AgentDetail> = {
     publicAgentKey: "echo_pub_install_desk",
     greetingMessage:
       "I can help your team answer installation scope, timelines, and site requirements.",
+    welcomeMessage:
+      "I can help your team answer installation scope, timelines, and site requirements.",
+    fallbackMessage:
+      "I do not have enough information from the available support docs to answer that confidently.",
+    status: "paused",
+    visibility: "private",
+    retrievalMode: "auto",
+    temperature: 0.2,
+    maxContextChunks: 6,
+    documentCount: 4,
+    conversationCount: 28,
+    updatedAt: "2026-04-20T12:20:00.000Z",
     primaryColor: "#f59e0b",
     launcherPosition: "left",
     allowedDomains: ["partners.northstarhvac.com"],
@@ -105,10 +149,10 @@ export const mockDocuments: Record<string, DocumentRecord[]> = {
       fileName: "warranty-policy-2026.pdf",
       mimeType: "application/pdf",
       sizeBytes: 284032,
-      status: "READY",
+      status: "ready",
+      chunkCount: 26,
       createdAt: "2026-04-20T08:30:00.000Z",
       updatedAt: "2026-04-20T08:37:00.000Z",
-      versionGroupKey: "warranty-policy",
       errorMessage: null,
     },
     {
@@ -116,10 +160,10 @@ export const mockDocuments: Record<string, DocumentRecord[]> = {
       fileName: "service-scheduling-playbook.md",
       mimeType: "text/markdown",
       sizeBytes: 88430,
-      status: "PROCESSING",
+      status: "embedding",
+      chunkCount: 0,
       createdAt: "2026-04-22T09:05:00.000Z",
       updatedAt: "2026-04-22T09:08:00.000Z",
-      versionGroupKey: "scheduling-playbook",
       errorMessage: null,
     },
     {
@@ -127,10 +171,10 @@ export const mockDocuments: Record<string, DocumentRecord[]> = {
       fileName: "return-parts-policy.txt",
       mimeType: "text/plain",
       sizeBytes: 12480,
-      status: "FAILED",
+      status: "failed",
+      chunkCount: 0,
       createdAt: "2026-04-18T11:20:00.000Z",
       updatedAt: "2026-04-18T11:24:00.000Z",
-      versionGroupKey: "parts-policy",
       errorMessage: "Parser could not detect a stable text encoding.",
     },
   ],
@@ -140,10 +184,10 @@ export const mockDocuments: Record<string, DocumentRecord[]> = {
       fileName: "maintenance-plan-faq.pdf",
       mimeType: "application/pdf",
       sizeBytes: 194220,
-      status: "READY",
+      status: "ready",
+      chunkCount: 18,
       createdAt: "2026-04-17T07:14:00.000Z",
       updatedAt: "2026-04-17T07:18:00.000Z",
-      versionGroupKey: "maintenance-plan",
       errorMessage: null,
     },
   ],
@@ -153,17 +197,17 @@ export const mockDocuments: Record<string, DocumentRecord[]> = {
 export const mockConversations: Record<string, PlaygroundConversation> = {
   agt_support_core: {
     id: "con_support_preview",
-    source: "PLAYGROUND",
+    channel: "playground",
     messages: [
       {
         id: "msg_1",
-        role: "USER",
+        role: "user",
         content: "Do you cover compressor replacements under warranty?",
         createdAt: "2026-04-22T10:00:00.000Z",
       },
       {
         id: "msg_2",
-        role: "ASSISTANT",
+        role: "assistant",
         content:
           "Yes. Compressor replacement is covered in years 1 to 5 when annual maintenance records are present. Labor is only included during the first 12 months.",
         confidenceScore: 0.93,
@@ -228,7 +272,7 @@ export const mockConversationSummaries: Record<string, ConversationSummary[]> = 
   agt_support_core: [
     {
       id: "con_001",
-      source: "WIDGET",
+      source: "widget",
       startedAt: "2026-04-22T08:10:00.000Z",
       lastMessageAt: "2026-04-22T08:14:00.000Z",
       messageCount: 6,
@@ -237,7 +281,7 @@ export const mockConversationSummaries: Record<string, ConversationSummary[]> = 
     },
     {
       id: "con_002",
-      source: "PLAYGROUND",
+      source: "playground",
       startedAt: "2026-04-22T09:22:00.000Z",
       lastMessageAt: "2026-04-22T09:24:00.000Z",
       messageCount: 4,
@@ -246,7 +290,7 @@ export const mockConversationSummaries: Record<string, ConversationSummary[]> = 
     },
     {
       id: "con_003",
-      source: "WIDGET",
+      source: "widget",
       startedAt: "2026-04-22T09:38:00.000Z",
       lastMessageAt: "2026-04-22T09:41:00.000Z",
       messageCount: 5,
@@ -257,7 +301,7 @@ export const mockConversationSummaries: Record<string, ConversationSummary[]> = 
   agt_aftercare: [
     {
       id: "con_004",
-      source: "WIDGET",
+      source: "widget",
       startedAt: "2026-04-21T16:10:00.000Z",
       lastMessageAt: "2026-04-21T16:11:00.000Z",
       messageCount: 3,
@@ -303,7 +347,7 @@ export function buildAssistantReply(message: string): PlaygroundMessage {
   let content =
     "I found the strongest matching policy excerpt and answered using the current agent documents."
   let confidenceScore = 0.82
-  let retrievalStrategy = "MULTI_QUERY"
+  let retrievalStrategy = "multi_query"
 
   if (normalized.includes("warranty")) {
     content =
@@ -313,17 +357,17 @@ export function buildAssistantReply(message: string): PlaygroundMessage {
     content =
       "Customers can reschedule up to 24 hours before the visit through the support portal or by replying to the service confirmation email."
     confidenceScore = 0.88
-    retrievalStrategy = "NAIVE_RAG"
+    retrievalStrategy = "naive"
   } else if (normalized.includes("order")) {
     content =
       "The current knowledge base does not expose live order data. Echo should direct the customer to the order tracker and escalate to an agent if the package status has not changed in 48 hours."
     confidenceScore = 0.71
-    retrievalStrategy = "FALLBACK"
+    retrievalStrategy = "fallback"
   }
 
   return {
     id: `msg_${Math.random().toString(36).slice(2, 8)}`,
-    role: "ASSISTANT",
+    role: "assistant",
     content,
     confidenceScore,
     retrievalStrategy,
