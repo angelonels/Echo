@@ -3,5 +3,5 @@ export type UploadDocumentResponse = {
   documentId?: string;
   filename?: string;
   storedPath?: string;
-  status?: "UPLOADED" | "PROCESSING" | "READY" | "FAILED";
+  status?: "uploaded" | "extracting" | "chunking" | "embedding" | "indexing" | "ready" | "failed";
 };

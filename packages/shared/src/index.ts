@@ -3,6 +3,7 @@ export * from "./constants/enums.js";
 export * from "./dto/analytics.js";
 export * from "./dto/chat.js";
 export * from "./dto/documents.js";
+export * from "./jobs/queue-contracts.js";
 export * from "./routes/api.js";
 export * from "./schemas/analytics.js";
 export * from "./schemas/chat.js";
