@@ -1,271 +1,319 @@
-import { pool } from "../../lib/db.js"
+import { randomBytes } from "node:crypto";
+import { env } from "../../config/env.js";
+import { pool } from "../../lib/db.js";
+
+export type AgentStatus = "draft" | "active" | "paused" | "archived";
+export type AgentVisibility = "private" | "public";
+export type RetrievalMode = "auto" | "naive" | "multi_query" | "hybrid";
 
 export type AgentRecord = {
-  id: string
-  orgId: string
-  name: string
-  description: string
-  greetingMessage: string
-  primaryColor: string
-  launcherPosition: "left" | "right"
-  isActive: boolean
-  publicAgentKey: string
-  updatedAt: string
-  documentCount?: number
-  conversationCount?: number
-}
+  id: string;
+  userId: string;
+  name: string;
+  description: string | null;
+  publicAgentKey: string;
+  status: AgentStatus;
+  visibility: AgentVisibility;
+  baseInstructions: string | null;
+  welcomeMessage: string | null;
+  fallbackMessage: string | null;
+  retrievalMode: RetrievalMode;
+  temperature: string;
+  maxContextChunks: number;
+  modelProvider: string;
+  generationModel: string;
+  embeddingModel: string;
+  createdAt: string;
+  updatedAt: string;
+  documentCount?: number;
+  conversationCount?: number;
+};
+
+export type AgentWriteInput = {
+  name: string;
+  description?: string | null;
+  status?: AgentStatus;
+  visibility?: AgentVisibility;
+  baseInstructions?: string | null;
+  welcomeMessage?: string | null;
+  fallbackMessage?: string | null;
+  retrievalMode?: RetrievalMode;
+  temperature?: number;
+  maxContextChunks?: number;
+  modelProvider?: string;
+  generationModel?: string;
+  embeddingModel?: string;
+};
 
 export class AgentsRepository {
-  async ensureDefaultOrganization() {
-    const existing = await pool.query<{ id: string; name: string; slug: string }>(
-      `SELECT id, name, slug FROM organizations ORDER BY created_at ASC LIMIT 1`,
-    )
-
-    if (existing.rows[0]) {
-      return existing.rows[0]
-    }
-
-    const created = await pool.query<{ id: string; name: string; slug: string }>(
-      `
-        INSERT INTO organizations (name, slug)
-        VALUES ('Echo Demo Company', 'echo-demo-company')
-        RETURNING id, name, slug
-      `,
-    )
-
-    return created.rows[0]
-  }
-
-  async listAgents(): Promise<AgentRecord[]> {
+  async listAgentsForUser(userId: string): Promise<AgentRecord[]> {
     const result = await pool.query<AgentRecord>(
       `
         SELECT
           a.id,
-          a.org_id AS "orgId",
+          a.user_id AS "userId",
           a.name,
           a.description,
-          a.greeting_message AS "greetingMessage",
-          a.primary_color AS "primaryColor",
-          a.launcher_position AS "launcherPosition",
-          a.is_active AS "isActive",
-          a.public_api_key::text AS "publicAgentKey",
+          a.public_agent_key AS "publicAgentKey",
+          a.status,
+          a.visibility,
+          a.base_instructions AS "baseInstructions",
+          a.welcome_message AS "welcomeMessage",
+          a.fallback_message AS "fallbackMessage",
+          a.retrieval_mode AS "retrievalMode",
+          a.temperature::text AS "temperature",
+          a.max_context_chunks AS "maxContextChunks",
+          a.model_provider AS "modelProvider",
+          a.generation_model AS "generationModel",
+          a.embedding_model AS "embeddingModel",
+          a.created_at AS "createdAt",
           a.updated_at AS "updatedAt",
           COUNT(DISTINCT d.id)::int AS "documentCount",
           COUNT(DISTINCT c.id)::int AS "conversationCount"
         FROM agents a
-        LEFT JOIN documents d ON d.agent_id = a.id::text
-        LEFT JOIN conversations c ON c.agent_id = a.id::text
+        LEFT JOIN documents d ON d.user_id = a.user_id AND d.agent_id = a.id::text
+        LEFT JOIN conversations c ON c.user_id = a.user_id AND c.agent_id = a.id::text
+        WHERE a.user_id = $1
+          AND a.status <> 'archived'
         GROUP BY a.id
         ORDER BY a.updated_at DESC, a.created_at DESC
       `,
-    )
+      [userId],
+    );
 
-    return result.rows
+    return result.rows;
   }
 
-  async findAgentById(agentId: string): Promise<AgentRecord | null> {
+  async findAgentForUser(userId: string, agentId: string): Promise<AgentRecord | null> {
     const result = await pool.query<AgentRecord>(
       `
         SELECT
           id,
-          org_id AS "orgId",
+          user_id AS "userId",
           name,
           description,
-          greeting_message AS "greetingMessage",
-          primary_color AS "primaryColor",
-          launcher_position AS "launcherPosition",
-          is_active AS "isActive",
-          public_api_key::text AS "publicAgentKey",
+          public_agent_key AS "publicAgentKey",
+          status,
+          visibility,
+          base_instructions AS "baseInstructions",
+          welcome_message AS "welcomeMessage",
+          fallback_message AS "fallbackMessage",
+          retrieval_mode AS "retrievalMode",
+          temperature::text AS "temperature",
+          max_context_chunks AS "maxContextChunks",
+          model_provider AS "modelProvider",
+          generation_model AS "generationModel",
+          embedding_model AS "embeddingModel",
+          created_at AS "createdAt",
           updated_at AS "updatedAt"
         FROM agents
         WHERE id = $1
+          AND user_id = $2
+          AND status <> 'archived'
         LIMIT 1
       `,
-      [agentId],
-    )
+      [agentId, userId],
+    );
 
-    return result.rows[0] ?? null
+    return result.rows[0] ?? null;
   }
 
   async findAgentByPublicKey(agentKey: string): Promise<AgentRecord | null> {
-    const normalizedKey = agentKey.replace(/^echo_pub_/, "")
     const result = await pool.query<AgentRecord>(
       `
         SELECT
           id,
-          org_id AS "orgId",
+          user_id AS "userId",
           name,
           description,
-          greeting_message AS "greetingMessage",
-          primary_color AS "primaryColor",
-          launcher_position AS "launcherPosition",
-          is_active AS "isActive",
-          public_api_key::text AS "publicAgentKey",
+          public_agent_key AS "publicAgentKey",
+          status,
+          visibility,
+          base_instructions AS "baseInstructions",
+          welcome_message AS "welcomeMessage",
+          fallback_message AS "fallbackMessage",
+          retrieval_mode AS "retrievalMode",
+          temperature::text AS "temperature",
+          max_context_chunks AS "maxContextChunks",
+          model_provider AS "modelProvider",
+          generation_model AS "generationModel",
+          embedding_model AS "embeddingModel",
+          created_at AS "createdAt",
           updated_at AS "updatedAt"
         FROM agents
-        WHERE public_api_key::text = $1
+        WHERE public_agent_key = $1
         LIMIT 1
       `,
-      [normalizedKey],
-    )
+      [agentKey],
+    );
 
-    return result.rows[0] ?? null
+    return result.rows[0] ?? null;
   }
 
-  async createAgent(input: {
-    orgId: string
-    name: string
-    description: string
-    greetingMessage: string
-    primaryColor: string
-    launcherPosition: "left" | "right"
-  }): Promise<AgentRecord> {
+  async createAgentForUser(userId: string, input: AgentWriteInput): Promise<AgentRecord> {
     const result = await pool.query<AgentRecord>(
       `
         INSERT INTO agents (
-          org_id,
+          user_id,
           name,
           description,
+          public_agent_key,
+          status,
+          visibility,
+          base_instructions,
+          welcome_message,
+          fallback_message,
+          retrieval_mode,
+          temperature,
+          max_context_chunks,
+          model_provider,
+          generation_model,
+          embedding_model,
           greeting_message,
-          primary_color,
-          launcher_position,
-          system_prompt
+          system_prompt,
+          is_active
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $8, $7, $5 = 'active')
         RETURNING
           id,
-          org_id AS "orgId",
+          user_id AS "userId",
           name,
           description,
-          greeting_message AS "greetingMessage",
-          primary_color AS "primaryColor",
-          launcher_position AS "launcherPosition",
-          is_active AS "isActive",
-          public_api_key::text AS "publicAgentKey",
+          public_agent_key AS "publicAgentKey",
+          status,
+          visibility,
+          base_instructions AS "baseInstructions",
+          welcome_message AS "welcomeMessage",
+          fallback_message AS "fallbackMessage",
+          retrieval_mode AS "retrievalMode",
+          temperature::text AS "temperature",
+          max_context_chunks AS "maxContextChunks",
+          model_provider AS "modelProvider",
+          generation_model AS "generationModel",
+          embedding_model AS "embeddingModel",
+          created_at AS "createdAt",
           updated_at AS "updatedAt"
       `,
       [
-        input.orgId,
+        userId,
         input.name,
-        input.description,
-        input.greetingMessage,
-        input.primaryColor,
-        input.launcherPosition,
-        "You are Echo, a helpful customer support assistant grounded in uploaded documents.",
+        input.description ?? null,
+        this.createPublicAgentKey(),
+        input.status ?? "draft",
+        input.visibility ?? "private",
+        input.baseInstructions ?? "You are Echo, a helpful support assistant grounded in uploaded documents.",
+        input.welcomeMessage ?? "Hi. Ask me anything about this product.",
+        input.fallbackMessage ?? "I do not have enough information from the available support docs to answer that confidently.",
+        input.retrievalMode ?? "auto",
+        input.temperature ?? 0.2,
+        input.maxContextChunks ?? 6,
+        input.modelProvider ?? "bedrock",
+        input.generationModel ?? env.DEFAULT_GENERATION_MODEL,
+        input.embeddingModel ?? env.DEFAULT_EMBEDDING_MODEL,
       ],
-    )
+    );
 
-    return result.rows[0]
+    return result.rows[0];
   }
 
-  async updateAgent(
-    agentId: string,
-    input: Partial<{
-      name: string
-      description: string
-      greetingMessage: string
-      primaryColor: string
-      launcherPosition: "left" | "right"
-      isActive: boolean
-    }>,
-  ): Promise<AgentRecord | null> {
-    const current = await this.findAgentById(agentId)
+  async updateAgentForUser(userId: string, agentId: string, input: Partial<AgentWriteInput>): Promise<AgentRecord | null> {
+    const current = await this.findAgentForUser(userId, agentId);
     if (!current) {
-      return null
+      return null;
     }
 
     const result = await pool.query<AgentRecord>(
       `
         UPDATE agents
         SET
-          name = $2,
-          description = $3,
-          greeting_message = $4,
-          primary_color = $5,
-          launcher_position = $6,
-          is_active = $7,
+          name = $3,
+          description = $4,
+          status = $5,
+          visibility = $6,
+          base_instructions = $7,
+          welcome_message = $8,
+          fallback_message = $9,
+          retrieval_mode = $10,
+          temperature = $11,
+          max_context_chunks = $12,
+          model_provider = $13,
+          generation_model = $14,
+          embedding_model = $15,
+          greeting_message = $8,
+          system_prompt = $7,
+          is_active = $5 = 'active',
           updated_at = NOW()
-        WHERE id = $1
+        WHERE id = $1 AND user_id = $2
         RETURNING
           id,
-          org_id AS "orgId",
+          user_id AS "userId",
           name,
           description,
-          greeting_message AS "greetingMessage",
-          primary_color AS "primaryColor",
-          launcher_position AS "launcherPosition",
-          is_active AS "isActive",
-          public_api_key::text AS "publicAgentKey",
+          public_agent_key AS "publicAgentKey",
+          status,
+          visibility,
+          base_instructions AS "baseInstructions",
+          welcome_message AS "welcomeMessage",
+          fallback_message AS "fallbackMessage",
+          retrieval_mode AS "retrievalMode",
+          temperature::text AS "temperature",
+          max_context_chunks AS "maxContextChunks",
+          model_provider AS "modelProvider",
+          generation_model AS "generationModel",
+          embedding_model AS "embeddingModel",
+          created_at AS "createdAt",
           updated_at AS "updatedAt"
       `,
       [
         agentId,
+        userId,
         input.name ?? current.name,
         input.description ?? current.description,
-        input.greetingMessage ?? current.greetingMessage,
-        input.primaryColor ?? current.primaryColor,
-        input.launcherPosition ?? current.launcherPosition,
-        input.isActive ?? current.isActive,
+        input.status ?? current.status,
+        input.visibility ?? current.visibility,
+        input.baseInstructions ?? current.baseInstructions,
+        input.welcomeMessage ?? current.welcomeMessage,
+        input.fallbackMessage ?? current.fallbackMessage,
+        input.retrievalMode ?? current.retrievalMode,
+        input.temperature ?? Number(current.temperature),
+        input.maxContextChunks ?? current.maxContextChunks,
+        input.modelProvider ?? current.modelProvider,
+        input.generationModel ?? current.generationModel,
+        input.embeddingModel ?? current.embeddingModel,
       ],
-    )
+    );
 
-    return result.rows[0] ?? null
+    return result.rows[0] ?? null;
   }
 
-  async listAllowedDomains(agentId: string): Promise<string[]> {
-    const result = await pool.query<{ domain: string }>(
-      `SELECT domain FROM allowed_domains WHERE agent_id = $1 ORDER BY domain ASC`,
-      [agentId],
-    )
-
-    return result.rows.map((row) => row.domain)
-  }
-
-  async addAllowedDomain(agentId: string, domain: string) {
-    await pool.query(
-      `
-        INSERT INTO allowed_domains (agent_id, domain)
-        VALUES ($1, $2)
-        ON CONFLICT (agent_id, domain) DO NOTHING
-      `,
-      [agentId, domain],
-    )
-
-    await this.syncAgentDomainCache(agentId)
-  }
-
-  async deleteAllowedDomain(agentId: string, domainId: string) {
-    await pool.query(`DELETE FROM allowed_domains WHERE agent_id = $1 AND id = $2`, [agentId, domainId])
-    await this.syncAgentDomainCache(agentId)
-  }
-
-  async findDomainById(domainId: string): Promise<{ id: string; agentId: string; domain: string } | null> {
-    const result = await pool.query<{ id: string; agentId: string; domain: string }>(
-      `
-        SELECT id, agent_id AS "agentId", domain
-        FROM allowed_domains
-        WHERE id = $1
-        LIMIT 1
-      `,
-      [domainId],
-    )
-
-    return result.rows[0] ?? null
-  }
-
-  private async syncAgentDomainCache(agentId: string) {
-    await pool.query(
+  async archiveAgentForUser(userId: string, agentId: string): Promise<boolean> {
+    const result = await pool.query(
       `
         UPDATE agents
-        SET allowed_domains = (
-          SELECT COALESCE(jsonb_agg(domain ORDER BY domain), '[]'::jsonb)
-          FROM allowed_domains
-          WHERE agent_id = $1
-        ),
-        updated_at = NOW()
-        WHERE id = $1
+        SET status = 'archived', is_active = FALSE, updated_at = NOW()
+        WHERE id = $1 AND user_id = $2 AND status <> 'archived'
       `,
-      [agentId],
-    )
+      [agentId, userId],
+    );
+
+    return (result.rowCount ?? 0) > 0;
+  }
+
+  async listAllowedDomainsForUser(userId: string, agentId: string): Promise<Array<{ id: string; domain: string }>> {
+    const result = await pool.query<{ id: string; domain: string }>(
+      `
+        SELECT id, domain
+        FROM allowed_domains
+        WHERE user_id = $1 AND agent_id = $2
+        ORDER BY domain ASC
+      `,
+      [userId, agentId],
+    );
+
+    return result.rows;
+  }
+
+  private createPublicAgentKey() {
+    return `agent_pub_${randomBytes(12).toString("base64url")}`;
   }
 }

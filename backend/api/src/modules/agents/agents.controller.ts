@@ -1,108 +1,97 @@
-import type { Request, Response } from "express"
-import { ZodError, z } from "zod"
-import { isAppError } from "../../lib/errors.js"
-import { AgentsService } from "./agents.service.js"
+import type { Request, Response } from "express";
+import { z } from "zod";
+import { getAuthenticatedUser } from "../../lib/auth.js";
+import { sendErrorResponse } from "../../lib/http.js";
+import { AgentsService } from "./agents.service.js";
+
+const agentStatusSchema = z.enum(["draft", "active", "paused", "archived"]);
+const agentVisibilitySchema = z.enum(["private", "public"]);
+const retrievalModeSchema = z.enum(["auto", "naive", "multi_query", "hybrid"]);
 
 const createAgentSchema = z.object({
-  name: z.string().min(2),
-  description: z.string().min(8),
-  greetingMessage: z.string().min(8),
-  primaryColor: z.string().regex(/^#([0-9A-Fa-f]{6})$/),
-  launcherPosition: z.enum(["left", "right"]),
-})
+  name: z.string().trim().min(2).max(120),
+  description: z.string().trim().max(1_000).optional().nullable(),
+  status: agentStatusSchema.optional(),
+  visibility: agentVisibilitySchema.optional(),
+  baseInstructions: z.string().trim().max(4_000).optional().nullable(),
+  welcomeMessage: z.string().trim().max(500).optional().nullable(),
+  greetingMessage: z.string().trim().max(500).optional(),
+  fallbackMessage: z.string().trim().max(500).optional().nullable(),
+  retrievalMode: retrievalModeSchema.optional(),
+  temperature: z.number().min(0).max(2).optional(),
+  maxContextChunks: z.number().int().min(1).max(20).optional(),
+  modelProvider: z.string().trim().min(1).max(80).optional(),
+  generationModel: z.string().trim().min(1).max(160).optional(),
+  embeddingModel: z.string().trim().min(1).max(160).optional(),
+});
 
 const updateAgentSchema = createAgentSchema.partial().extend({
+  greetingMessage: z.string().trim().max(500).optional(),
   isActive: z.boolean().optional(),
-})
-
-const domainSchema = z.object({
-  domain: z.string().min(3),
-})
+});
 
 export class AgentsController {
   constructor(private readonly agentsService: AgentsService) {}
 
-  listAgents = async (_request: Request, response: Response) => {
+  listAgents = async (request: Request, response: Response) => {
     try {
-      response.status(200).json(await this.agentsService.listAgents())
+      const auth = getAuthenticatedUser(request);
+      response.status(200).json(await this.agentsService.listAgents(auth.userId));
     } catch (error) {
-      this.handleError(response, error)
+      this.handleError(response, error);
     }
-  }
+  };
 
   getAgent = async (request: Request, response: Response) => {
     try {
-      response.status(200).json(await this.agentsService.getAgent(String(request.params.agentId)))
+      const auth = getAuthenticatedUser(request);
+      response.status(200).json(await this.agentsService.getAgent(auth.userId, String(request.params.agentId)));
     } catch (error) {
-      this.handleError(response, error)
+      this.handleError(response, error);
     }
-  }
+  };
 
   createAgent = async (request: Request, response: Response) => {
     try {
-      const input = createAgentSchema.parse(request.body)
-      response.status(201).json(await this.agentsService.createAgent(input))
+      const auth = getAuthenticatedUser(request);
+      const input = createAgentSchema.parse(request.body);
+      response.status(201).json(
+        await this.agentsService.createAgent(auth.userId, {
+          ...input,
+          welcomeMessage: input.welcomeMessage ?? input.greetingMessage,
+        }),
+      );
     } catch (error) {
-      this.handleError(response, error)
+      this.handleError(response, error);
     }
-  }
+  };
 
   updateAgent = async (request: Request, response: Response) => {
     try {
-      const input = updateAgentSchema.parse(request.body)
-      response.status(200).json(await this.agentsService.updateAgent(String(request.params.agentId), input))
-    } catch (error) {
-      this.handleError(response, error)
-    }
-  }
-
-  addAllowedDomain = async (request: Request, response: Response) => {
-    try {
-      const input = domainSchema.parse(request.body)
-      response.status(201).json(await this.agentsService.addAllowedDomain(String(request.params.agentId), input.domain))
-    } catch (error) {
-      this.handleError(response, error)
-    }
-  }
-
-  deleteAllowedDomain = async (request: Request, response: Response) => {
-    try {
+      const auth = getAuthenticatedUser(request);
+      const input = updateAgentSchema.parse(request.body);
       response.status(200).json(
-        await this.agentsService.deleteAllowedDomain(String(request.params.agentId), String(request.params.domainId)),
-      )
+        await this.agentsService.updateAgent(auth.userId, String(request.params.agentId), {
+          ...input,
+          welcomeMessage: input.welcomeMessage ?? input.greetingMessage,
+          status: input.status ?? (input.isActive === undefined ? undefined : input.isActive ? "active" : "paused"),
+        }),
+      );
     } catch (error) {
-      this.handleError(response, error)
+      this.handleError(response, error);
     }
-  }
+  };
+
+  deleteAgent = async (request: Request, response: Response) => {
+    try {
+      const auth = getAuthenticatedUser(request);
+      response.status(200).json(await this.agentsService.deleteAgent(auth.userId, String(request.params.agentId)));
+    } catch (error) {
+      this.handleError(response, error);
+    }
+  };
 
   private handleError(response: Response, error: unknown) {
-    if (error instanceof ZodError) {
-      response.status(400).json({
-        error: {
-          code: "VALIDATION_ERROR",
-          message: "Request validation failed",
-          details: error.flatten(),
-        },
-      })
-      return
-    }
-
-    if (isAppError(error)) {
-      response.status(error.statusCode).json({
-        error: {
-          code: error.code,
-          message: error.message,
-          details: error.details,
-        },
-      })
-      return
-    }
-
-    response.status(500).json({
-      error: {
-        code: "INTERNAL_SERVER_ERROR",
-        message: "Unexpected server error",
-      },
-    })
+    sendErrorResponse(response, error);
   }
 }

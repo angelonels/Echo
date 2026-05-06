@@ -2,6 +2,7 @@ import { Router } from "express"
 import { AgentsController } from "../agents.controller.js"
 import { AgentsRepository } from "../agents.repository.js"
 import { AgentsService } from "../agents.service.js"
+import { allowedDomainsRouter } from "../../allowed-domains/routes/allowed-domains.routes.js"
 
 const agentsRepository = new AgentsRepository()
 const agentsService = new AgentsService(agentsRepository)
@@ -13,5 +14,5 @@ agentsRouter.get("/", agentsController.listAgents)
 agentsRouter.post("/", agentsController.createAgent)
 agentsRouter.get("/:agentId", agentsController.getAgent)
 agentsRouter.patch("/:agentId", agentsController.updateAgent)
-agentsRouter.post("/:agentId/domains", agentsController.addAllowedDomain)
-agentsRouter.delete("/:agentId/domains/:domainId", agentsController.deleteAllowedDomain)
+agentsRouter.delete("/:agentId", agentsController.deleteAgent)
+agentsRouter.use("/:agentId/domains", allowedDomainsRouter)

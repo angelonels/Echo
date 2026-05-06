@@ -1,131 +1,106 @@
-import { AppError } from "../../lib/errors.js"
-import { AgentsRepository } from "./agents.repository.js"
+import { AppError } from "../../lib/errors.js";
+import { AgentsRepository, type AgentRecord, type AgentWriteInput } from "./agents.repository.js";
 
 export class AgentsService {
   constructor(private readonly agentsRepository: AgentsRepository) {}
 
-  async listAgents() {
-    const agents = await this.agentsRepository.listAgents()
+  async listAgents(userId: string) {
+    const agents = await this.agentsRepository.listAgentsForUser(userId);
     return {
-      items: await Promise.all(agents.map((agent) => this.toAgentSummary(agent))),
-    }
+      items: agents.map((agent) => this.toAgentSummary(agent)),
+    };
   }
 
-  async getAgent(agentId: string) {
-    const agent = await this.agentsRepository.findAgentById(agentId)
+  async getAgent(userId: string, agentId: string) {
+    const agent = await this.findAgentOrThrow(userId, agentId);
+    return this.toAgentDetail(agent, await this.agentsRepository.listAllowedDomainsForUser(userId, agentId));
+  }
+
+  async createAgent(userId: string, input: AgentWriteInput) {
+    const agent = await this.agentsRepository.createAgentForUser(userId, input);
+    return this.toAgentDetail(agent, []);
+  }
+
+  async updateAgent(userId: string, agentId: string, input: Partial<AgentWriteInput>) {
+    const agent = await this.agentsRepository.updateAgentForUser(userId, agentId, input);
     if (!agent) {
-      throw new AppError(404, "AGENT_NOT_FOUND", "Agent not found.")
+      throw new AppError(404, "AGENT_NOT_FOUND", "Agent not found.");
     }
 
-    return this.toAgentDetail(agent)
+    return this.toAgentDetail(agent, await this.agentsRepository.listAllowedDomainsForUser(userId, agentId));
   }
 
-  async createAgent(input: {
-    name: string
-    description: string
-    greetingMessage: string
-    primaryColor: string
-    launcherPosition: "left" | "right"
-  }) {
-    const organization = await this.agentsRepository.ensureDefaultOrganization()
-    const agent = await this.agentsRepository.createAgent({
-      orgId: organization.id,
-      ...input,
-    })
-
-    return this.toAgentDetail(agent)
-  }
-
-  async updateAgent(
-    agentId: string,
-    input: Partial<{
-      name: string
-      description: string
-      greetingMessage: string
-      primaryColor: string
-      launcherPosition: "left" | "right"
-      isActive: boolean
-    }>,
-  ) {
-    const agent = await this.agentsRepository.updateAgent(agentId, input)
-    if (!agent) {
-      throw new AppError(404, "AGENT_NOT_FOUND", "Agent not found.")
+  async deleteAgent(userId: string, agentId: string) {
+    const deleted = await this.agentsRepository.archiveAgentForUser(userId, agentId);
+    if (!deleted) {
+      throw new AppError(404, "AGENT_NOT_FOUND", "Agent not found.");
     }
 
-    return this.toAgentDetail(agent)
-  }
-
-  async addAllowedDomain(agentId: string, domain: string) {
-    const agent = await this.agentsRepository.findAgentById(agentId)
-    if (!agent) {
-      throw new AppError(404, "AGENT_NOT_FOUND", "Agent not found.")
-    }
-
-    await this.agentsRepository.addAllowedDomain(agentId, domain)
-    return this.getAgent(agentId)
-  }
-
-  async deleteAllowedDomain(agentId: string, domainId: string) {
-    const domain = await this.agentsRepository.findDomainById(domainId)
-    if (!domain || domain.agentId !== agentId) {
-      throw new AppError(404, "DOMAIN_NOT_FOUND", "Allowed domain not found.")
-    }
-
-    await this.agentsRepository.deleteAllowedDomain(agentId, domainId)
-    return { success: true }
+    return { success: true };
   }
 
   async getAgentByPublicKey(agentKey: string) {
-    const agent = await this.agentsRepository.findAgentByPublicKey(agentKey)
+    const agent = await this.agentsRepository.findAgentByPublicKey(agentKey);
+    if (!agent || agent.status === "archived") {
+      throw new AppError(404, "AGENT_NOT_FOUND", "Agent not found.");
+    }
+
+    return this.toAgentDetail(agent, await this.agentsRepository.listAllowedDomainsForUser(agent.userId, agent.id));
+  }
+
+  private async findAgentOrThrow(userId: string, agentId: string) {
+    const agent = await this.agentsRepository.findAgentForUser(userId, agentId);
     if (!agent) {
-      throw new AppError(404, "AGENT_NOT_FOUND", "Agent not found.")
+      throw new AppError(404, "AGENT_NOT_FOUND", "Agent not found.");
     }
 
-    return this.toAgentDetail(agent)
+    return agent;
   }
 
-  private async toAgentSummary(agent: {
-    id: string
-    name: string
-    isActive: boolean
-    publicAgentKey: string
-    documentCount?: number
-    conversationCount?: number
-    updatedAt: string
-  }) {
-    return {
-      id: agent.id,
-      name: agent.name,
-      publicAgentKey: `echo_pub_${agent.publicAgentKey}`,
-      isActive: agent.isActive,
-      documentCount: agent.documentCount ?? 0,
-      conversationCount: agent.conversationCount ?? 0,
-      updatedAt: new Date(agent.updatedAt).toISOString(),
-    }
-  }
-
-  private async toAgentDetail(agent: {
-    id: string
-    name: string
-    description: string
-    greetingMessage: string
-    primaryColor: string
-    launcherPosition: "left" | "right"
-    isActive: boolean
-    publicAgentKey: string
-  }) {
-    const allowedDomains = await this.agentsRepository.listAllowedDomains(agent.id)
-
+  private toAgentSummary(agent: AgentRecord) {
     return {
       id: agent.id,
       name: agent.name,
       description: agent.description,
-      greetingMessage: agent.greetingMessage,
-      primaryColor: agent.primaryColor,
-      launcherPosition: agent.launcherPosition,
+      publicAgentKey: agent.publicAgentKey,
+      status: agent.status,
+      visibility: agent.visibility,
+      welcomeMessage: agent.welcomeMessage,
+      retrievalMode: agent.retrievalMode,
+      modelProvider: agent.modelProvider,
+      generationModel: agent.generationModel,
+      embeddingModel: agent.embeddingModel,
+      documentCount: agent.documentCount ?? 0,
+      conversationCount: agent.conversationCount ?? 0,
+      updatedAt: new Date(agent.updatedAt).toISOString(),
+      isActive: agent.status === "active",
+    };
+  }
+
+  private toAgentDetail(agent: AgentRecord, allowedDomains: Array<{ id: string; domain: string }>) {
+    return {
+      id: agent.id,
+      name: agent.name,
+      description: agent.description,
+      publicAgentKey: agent.publicAgentKey,
+      status: agent.status,
+      visibility: agent.visibility,
+      baseInstructions: agent.baseInstructions,
+      welcomeMessage: agent.welcomeMessage,
+      fallbackMessage: agent.fallbackMessage,
+      retrievalMode: agent.retrievalMode,
+      temperature: Number(agent.temperature),
+      maxContextChunks: agent.maxContextChunks,
+      modelProvider: agent.modelProvider,
+      generationModel: agent.generationModel,
+      embeddingModel: agent.embeddingModel,
       allowedDomains,
-      isActive: agent.isActive,
-      publicAgentKey: `echo_pub_${agent.publicAgentKey}`,
-    }
+      createdAt: new Date(agent.createdAt).toISOString(),
+      updatedAt: new Date(agent.updatedAt).toISOString(),
+      greetingMessage: agent.welcomeMessage ?? "Hi. Ask me anything about this product.",
+      primaryColor: "#0f8f7f",
+      launcherPosition: "right",
+      isActive: agent.status === "active",
+    };
   }
 }
