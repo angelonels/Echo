@@ -22,7 +22,13 @@ const storage = multer.diskStorage({
   },
 });
 
-export const uploadMiddleware = multer({ storage });
+export const uploadMiddleware = multer({
+  storage,
+  limits: {
+    fileSize: env.MAX_UPLOAD_BYTES,
+    files: 1,
+  },
+});
 
 export function resolveUploadPath(filename: string) {
   return path.join(env.UPLOAD_ROOT, filename);

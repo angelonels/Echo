@@ -1,7 +1,8 @@
 import type { Request, Response } from "express"
 import { ZodError } from "zod"
 import { uploadDocumentSchema } from "@echo/shared"
-import { isAppError } from "../../lib/errors.js"
+import { getAuthenticatedUser } from "../../lib/auth.js"
+import { sendErrorResponse } from "../../lib/http.js"
 import { resolveUploadPath } from "../../lib/uploads.js"
 import { DocumentsService } from "./documents.service.js"
 
@@ -10,7 +11,8 @@ export class DocumentsController {
 
   listDocuments = async (request: Request, response: Response) => {
     try {
-      response.status(200).json(await this.documentsService.listDocuments(String(request.params.agentId)))
+      const auth = getAuthenticatedUser(request)
+      response.status(200).json(await this.documentsService.listDocuments(auth.userId, String(request.params.agentId)))
     } catch (error) {
       this.handleError(response, error)
     }
@@ -18,8 +20,10 @@ export class DocumentsController {
 
   getDocument = async (request: Request, response: Response) => {
     try {
+      const auth = getAuthenticatedUser(request)
       response.status(200).json(
         await this.documentsService.getDocument(
+          auth.userId,
           String(request.params.agentId),
           String(request.params.documentId),
         ),
@@ -31,6 +35,7 @@ export class DocumentsController {
 
   uploadDocument = async (request: Request, response: Response) => {
     try {
+      const auth = getAuthenticatedUser(request)
       if (!request.file) {
         throw new ZodError([
           {
@@ -44,12 +49,13 @@ export class DocumentsController {
       uploadDocumentSchema.parse({
         mimetype: request.file.mimetype,
         originalname: request.file.originalname,
+        size: request.file.size,
         agentId: request.params.agentId,
-        companyId: "unused-route-scope",
       })
 
       response.status(202).json(
         await this.documentsService.uploadDocument({
+          userId: auth.userId,
           agentId: String(request.params.agentId),
           filename: request.file.originalname,
           mimeType: request.file.mimetype,
@@ -64,8 +70,10 @@ export class DocumentsController {
 
   deleteDocument = async (request: Request, response: Response) => {
     try {
+      const auth = getAuthenticatedUser(request)
       response.status(200).json(
         await this.documentsService.deleteDocument(
+          auth.userId,
           String(request.params.agentId),
           String(request.params.documentId),
         ),
@@ -75,10 +83,48 @@ export class DocumentsController {
     }
   }
 
+  replaceDocument = async (request: Request, response: Response) => {
+    try {
+      const auth = getAuthenticatedUser(request)
+      if (!request.file) {
+        throw new ZodError([
+          {
+            code: "custom",
+            path: ["file"],
+            message: "File is required.",
+          },
+        ])
+      }
+
+      uploadDocumentSchema.parse({
+        mimetype: request.file.mimetype,
+        originalname: request.file.originalname,
+        size: request.file.size,
+        agentId: request.params.agentId,
+      })
+
+      response.status(202).json(
+        await this.documentsService.replaceDocument({
+          userId: auth.userId,
+          agentId: String(request.params.agentId),
+          documentId: String(request.params.documentId),
+          filename: request.file.originalname,
+          mimeType: request.file.mimetype,
+          sizeBytes: request.file.size,
+          storagePath: resolveUploadPath(request.file.filename),
+        }),
+      )
+    } catch (error) {
+      this.handleError(response, error)
+    }
+  }
+
   reindexDocument = async (request: Request, response: Response) => {
     try {
+      const auth = getAuthenticatedUser(request)
       response.status(202).json(
         await this.documentsService.reindexDocument(
+          auth.userId,
           String(request.params.agentId),
           String(request.params.documentId),
         ),
@@ -89,33 +135,6 @@ export class DocumentsController {
   }
 
   private handleError(response: Response, error: unknown) {
-    if (error instanceof ZodError) {
-      response.status(400).json({
-        error: {
-          code: "VALIDATION_ERROR",
-          message: "Request validation failed",
-          details: error.flatten(),
-        },
-      })
-      return
-    }
-
-    if (isAppError(error)) {
-      response.status(error.statusCode).json({
-        error: {
-          code: error.code,
-          message: error.message,
-          details: error.details,
-        },
-      })
-      return
-    }
-
-    response.status(500).json({
-      error: {
-        code: "INTERNAL_SERVER_ERROR",
-        message: "Unexpected server error",
-      },
-    })
+    sendErrorResponse(response, error)
   }
 }
