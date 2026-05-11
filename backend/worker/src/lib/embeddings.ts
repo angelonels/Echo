@@ -30,7 +30,7 @@ export class EmbeddingService {
       ? new BedrockEmbeddings({
           region: env.AWS_DEFAULT_REGION,
           credentials,
-          model: "amazon.titan-embed-text-v2:0",
+          model: env.DEFAULT_EMBEDDING_MODEL,
         })
       : null;
 
