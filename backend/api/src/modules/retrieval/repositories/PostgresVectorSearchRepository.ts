@@ -15,40 +15,43 @@ export class PostgresVectorSearchRepository implements VectorSearchRepository {
     const rawQuery = sql`
       WITH vector_search AS (
         SELECT
-          id,
-          doc_id,
-          company_id,
-          agent_id,
-          content,
-          metadata,
-          chunk_index,
-          GREATEST(0.0, 1 - (embedding <=> ${embeddingString}::vector)) AS semantic_score,
-          ROW_NUMBER() OVER (ORDER BY embedding <=> ${embeddingString}::vector) AS semantic_rank
-        FROM knowledge_chunks
-        WHERE company_id = ${params.companyId}
-          AND agent_id = ${params.agentId}
+          kc.id,
+          kc.doc_id,
+          kc.user_id,
+          kc.agent_id,
+          kc.content,
+          kc.metadata,
+          kc.chunk_index,
+          GREATEST(0.0, 1 - (kc.embedding <=> ${embeddingString}::vector)) AS semantic_score,
+          ROW_NUMBER() OVER (ORDER BY kc.embedding <=> ${embeddingString}::vector) AS semantic_rank
+        FROM knowledge_chunks kc
+        JOIN documents d ON d.current_version_id = kc.document_version_id
+        WHERE kc.user_id = ${params.userId}
+          AND kc.agent_id = ${params.agentId}
         LIMIT ${Math.max(params.limit * 3, 12)}
       ),
       keyword_search AS (
         SELECT
-          id,
-          ts_rank(search_vector, plainto_tsquery('english', ${params.query})) AS lexical_score,
+          kc.id,
+          ts_rank(kc.search_vector, plainto_tsquery('english', ${params.query})) AS lexical_score,
           ROW_NUMBER() OVER (
-            ORDER BY ts_rank(search_vector, plainto_tsquery('english', ${params.query})) DESC
+            ORDER BY ts_rank(kc.search_vector, plainto_tsquery('english', ${params.query})) DESC
           ) AS lexical_rank
-        FROM knowledge_chunks
-        WHERE company_id = ${params.companyId}
-          AND agent_id = ${params.agentId}
-          AND search_vector @@ plainto_tsquery('english', ${params.query})
+        FROM knowledge_chunks kc
+        JOIN documents d ON d.current_version_id = kc.document_version_id
+        WHERE kc.user_id = ${params.userId}
+          AND kc.agent_id = ${params.agentId}
+          AND kc.search_vector @@ plainto_tsquery('english', ${params.query})
         LIMIT ${Math.max(params.limit * 3, 12)}
       )
       SELECT
         v.id AS chunk_id,
         v.doc_id AS document_id,
-        v.company_id,
+        v.user_id,
         v.agent_id,
         v.content,
         v.metadata,
+        COALESCE(v.metadata->>'filename', 'Uploaded document') AS document_title,
         COALESCE(k.lexical_score, 0.0) AS lexical_score,
         v.semantic_score,
         (
@@ -71,8 +74,9 @@ export class PostgresVectorSearchRepository implements VectorSearchRepository {
     return results.rows.map((row: Record<string, unknown>) => ({
       chunkId: String(row.chunk_id),
       documentId: String(row.document_id),
-      companyId: String(row.company_id),
+      userId: String(row.user_id),
       agentId: String(row.agent_id),
+      documentTitle: String(row.document_title ?? "Uploaded document"),
       content: String(row.content),
       lexicalScore: Number(row.lexical_score ?? 0),
       semanticScore: Number(row.semantic_score ?? 0),
@@ -93,7 +97,8 @@ export class PostgresVectorSearchRepository implements VectorSearchRepository {
       await tx.insert(knowledgeChunks).values(
         chunks.map((chunk) => ({
           docId: chunk.documentId,
-          companyId: chunk.companyId,
+          userId: chunk.userId,
+          companyId: chunk.userId,
           agentId: chunk.agentId,
           chunkIndex: String(chunk.chunkIndex),
           content: chunk.content,

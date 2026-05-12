@@ -3,8 +3,6 @@ import { env } from "../../../config/env.js";
 import type { ChatModelProvider } from "../interfaces/ChatModelProvider.js";
 import type { EmbeddingProvider } from "../interfaces/EmbeddingProvider.js";
 
-const EMBEDDING_DIMENSIONS = 1024;
-
 const credentials =
   env.AWS_ACCESS_KEY_ID && env.AWS_SECRET_ACCESS_KEY
     ? {
@@ -14,11 +12,11 @@ const credentials =
     : undefined;
 
 function createDeterministicEmbedding(input: string): number[] {
-  const vector = new Array<number>(EMBEDDING_DIMENSIONS).fill(0);
+  const vector = new Array<number>(env.EMBEDDING_DIMENSION).fill(0);
   const normalized = input.toLowerCase();
   for (let index = 0; index < normalized.length; index += 1) {
     const code = normalized.charCodeAt(index);
-    const slot = (code + index * 31) % EMBEDDING_DIMENSIONS;
+    const slot = (code + index * 31) % env.EMBEDDING_DIMENSION;
     vector[slot] += 1;
   }
 
@@ -26,7 +24,7 @@ function createDeterministicEmbedding(input: string): number[] {
   return vector.map((value) => Number((value / magnitude).toFixed(6)));
 }
 
-function buildFallbackAnswer(prompt: string): string {
+export function buildGroundedFallbackAnswer(prompt: string): string {
   const questionMatch = prompt.match(/Question:\n([\s\S]*?)\n\nContext:/);
   const contextMatch = prompt.match(/Context:\n([\s\S]*)$/);
   const question = questionMatch?.[1]?.trim() ?? "the question";
@@ -75,7 +73,7 @@ export class BedrockEmbeddingProvider implements EmbeddingProvider {
       ? new BedrockEmbeddings({
           region: env.AWS_DEFAULT_REGION,
           credentials,
-          model: "amazon.titan-embed-text-v2:0",
+          model: env.DEFAULT_EMBEDDING_MODEL,
         })
       : null;
 
@@ -110,13 +108,13 @@ export class BedrockChatModelProvider implements ChatModelProvider {
       ? new ChatBedrockConverse({
           region: env.AWS_DEFAULT_REGION,
           credentials,
-          model: "meta.llama3-8b-instruct-v1:0",
+          model: env.DEFAULT_GENERATION_MODEL,
         })
       : null;
 
   async generateText(prompt: string): Promise<string> {
     if (!this.client) {
-      return buildFallbackAnswer(prompt);
+      return buildGroundedFallbackAnswer(prompt);
     }
 
     try {
@@ -126,9 +124,18 @@ export class BedrockChatModelProvider implements ChatModelProvider {
             .map((item) => ("text" in item && typeof item.text === "string" ? item.text : ""))
             .join("")
         : String(response.content ?? "");
-      return content.trim() || buildFallbackAnswer(prompt);
+      const normalized = content.trim();
+      if (
+        !normalized ||
+        normalized.toLowerCase().includes("not enough context") ||
+        normalized.toLowerCase().includes("cannot verify")
+      ) {
+        return buildGroundedFallbackAnswer(prompt);
+      }
+
+      return normalized;
     } catch {
-      return buildFallbackAnswer(prompt);
+      return buildGroundedFallbackAnswer(prompt);
     }
   }
 }

@@ -1,7 +1,7 @@
 import type { RetrievedChunk } from "../types/retrieval.js";
 
 export interface HybridSearchParams {
-  companyId: string;
+  userId: string;
   agentId: string;
   query: string;
   embedding: number[];
@@ -10,7 +10,7 @@ export interface HybridSearchParams {
 
 export interface PersistChunkParams {
   documentId: string;
-  companyId: string;
+  userId: string;
   agentId: string;
   content: string;
   embedding: number[];
