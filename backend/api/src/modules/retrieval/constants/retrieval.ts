@@ -8,8 +8,8 @@ export const RETRIEVAL_LIMITS = {
 } as const;
 
 export const ROUTING_THRESHOLDS = {
-  naiveMinConfidence: 0.72,
+  naiveMinConfidence: 0.6,
   multiQueryMinConfidence: 0.12,
-  fallbackMinConfidence: 0.1,
-  minAnswerConfidence: 0.1,
+  fallbackMinConfidence: 0.05,
+  minAnswerConfidence: 0.05,
 } as const;
