@@ -121,15 +121,15 @@ export function pickStrategy(
   resultCount: number,
 ): RetrievalStrategy {
   if (resultCount === 0) {
-    return "FALLBACK";
+    return "fallback";
   }
 
   if (classification.requiresBroaderSearch) {
-    return "MULTI_QUERY";
+    return "multi_query";
   }
 
   if (confidence < ROUTING_THRESHOLDS.fallbackMinConfidence) {
-    return "FALLBACK";
+    return "fallback";
   }
 
   if (
@@ -137,21 +137,21 @@ export function pickStrategy(
     confidence >= ROUTING_THRESHOLDS.naiveMinConfidence &&
     resultCount >= RETRIEVAL_LIMITS.lowResultCountThreshold
   ) {
-    return "NAIVE_RAG";
+    return "naive";
   }
 
   if (confidence >= ROUTING_THRESHOLDS.multiQueryMinConfidence) {
-    return "MULTI_QUERY";
+    return "multi_query";
   }
 
-  return "FALLBACK";
+  return "fallback";
 }
 
 export function shouldFallback(confidence: number, answer: string): boolean {
   const normalizedAnswer = answer.trim().toLowerCase();
   const isEmpty = normalizedAnswer.length === 0;
   const looksHedged = normalizedAnswer.includes("not enough context") || normalizedAnswer.includes("cannot verify");
-  return isEmpty || looksHedged || confidence < ROUTING_THRESHOLDS.minAnswerConfidence;
+  return isEmpty || looksHedged;
 }
 
 function clamp(value: number) {
