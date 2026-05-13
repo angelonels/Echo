@@ -7,8 +7,12 @@ export const RetrievalGraphState = Annotation.Root({
     reducer: (_previous, next) => next,
     default: () => "",
   }),
-  companyId: Annotation<string>(),
+  userId: Annotation<string>(),
   agentId: Annotation<string>(),
+  channel: Annotation<"playground" | "widget" | "internal_eval">({
+    reducer: (_previous, next) => next,
+    default: () => "playground",
+  }),
   conversation: Annotation<Array<{ role: "user" | "assistant"; content: string }>>({
     reducer: (_previous, next) => next,
     default: () => [],
@@ -28,7 +32,7 @@ export const RetrievalGraphState = Annotation.Root({
   }),
   strategy: Annotation<RetrievalStrategy>({
     reducer: (_previous, next) => next,
-    default: () => "FALLBACK",
+    default: () => "fallback",
   }),
   expandedQueries: Annotation<string[]>({
     reducer: (_previous, next) => next,

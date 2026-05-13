@@ -13,6 +13,7 @@ import {
   scoreConfidence,
   shouldFallback,
 } from "../services/retrievalHeuristics.js";
+import { buildContextText, buildGroundedAnswerPrompt, verifiedFallbackAnswer } from "../services/retrievalPrompts.js";
 
 interface RetrievalOrchestratorDeps {
   embeddingProvider: EmbeddingProvider;
@@ -30,15 +31,17 @@ export class RetrievalOrchestrator {
   async run(request: RetrievalRequest): Promise<RetrievalResponse> {
     const finalState = await this.graph.invoke({
       rawInput: request.query,
-      companyId: request.companyId,
+      userId: request.userId,
       agentId: request.agentId,
+      channel: request.channel,
       conversation: request.conversation.slice(-6),
     });
+    const selectedChunks = finalState.retrievedChunks.slice(0, RETRIEVAL_LIMITS.finalContextChunks);
 
     return {
       strategy: finalState.strategy,
       confidence: finalState.confidence,
-      context: finalState.retrievedChunks.slice(0, RETRIEVAL_LIMITS.finalContextChunks).map((chunk: RetrievedChunk) => ({
+      context: selectedChunks.map((chunk: RetrievedChunk) => ({
         chunkId: chunk.chunkId,
         documentId: chunk.documentId,
         content: chunk.content,
@@ -46,7 +49,17 @@ export class RetrievalOrchestrator {
         score: chunk.combinedScore,
       })),
       answer: finalState.finalAnswer,
+      responseType: finalState.shouldFallback ? "fallback" : "grounded_answer",
       shouldFallback: finalState.shouldFallback,
+      citations: selectedChunks.slice(0, 3).map((chunk: RetrievedChunk) => ({
+        documentId: chunk.documentId,
+        documentTitle: chunk.documentTitle,
+        chunkId: chunk.chunkId,
+        excerpt: chunk.content.slice(0, 280),
+      })),
+      selectedChunks,
+      confidenceComponents: finalState.confidenceBreakdown,
+      normalizedQuestion: finalState.normalizedQuery,
       expandedQueries: finalState.expandedQueries,
       classification: finalState.classification,
     };
@@ -95,7 +108,7 @@ export class RetrievalOrchestrator {
   private initialRecallProbeNode = async (state: RetrievalGraphStateType) => {
     const embedding = await this.deps.embeddingProvider.embedQuery(state.normalizedQuery);
     const probeResults = await this.deps.vectorSearchRepository.hybridSearch({
-      companyId: state.companyId,
+      userId: state.userId,
       agentId: state.agentId,
       query: state.normalizedQuery,
       embedding,
@@ -106,26 +119,45 @@ export class RetrievalOrchestrator {
   };
 
   private strategyRouterNode = (state: RetrievalGraphStateType) => {
+    if (state.probeResults.length === 0) {
+      return "fallbackResponder";
+    }
+
+    const informativeTokens = state.normalizedQuery
+      .toLowerCase()
+      .split(/\W+/)
+      .filter((token: string) => token.length >= 4 && !["uploaded", "guide", "document", "documents"].includes(token));
+
+    const hasMeaningfulOverlap = state.probeResults.some(
+      (chunk: RetrievedChunk) =>
+        chunk.lexicalScore >= 0.05 ||
+        informativeTokens.some((token: string) => chunk.content.toLowerCase().includes(token)),
+    );
+
+    if (!state.classification.requiresBroaderSearch && hasMeaningfulOverlap) {
+      return "naiveRetrieve";
+    }
+
     const { confidence } = scoreConfidence(state.probeResults);
     const strategy = pickStrategy(state.classification, confidence, state.probeResults.length);
-    return strategy === "NAIVE_RAG" ? "naiveRetrieve" : strategy === "MULTI_QUERY" ? "expandQueries" : "fallbackResponder";
+    return strategy === "naive" ? "naiveRetrieve" : strategy === "multi_query" || strategy === "hybrid" ? "expandQueries" : "fallbackResponder";
   };
 
   private naiveRetrieveNode = async (state: RetrievalGraphStateType) => {
     const embedding = await this.deps.embeddingProvider.embedQuery(state.normalizedQuery);
     const retrievedChunks = await this.deps.vectorSearchRepository.hybridSearch({
-      companyId: state.companyId,
+      userId: state.userId,
       agentId: state.agentId,
       query: state.normalizedQuery,
       embedding,
       limit: RETRIEVAL_LIMITS.naiveTopK,
     });
 
-    return { strategy: "NAIVE_RAG" as const, retrievedChunks, expandedQueries: [state.normalizedQuery] };
+    return { strategy: "naive" as const, retrievedChunks, expandedQueries: [state.normalizedQuery] };
   };
 
   private expandQueriesNode = async (state: RetrievalGraphStateType) => ({
-    strategy: "MULTI_QUERY" as const,
+    strategy: "multi_query" as const,
     expandedQueries: expandQueries(state.normalizedQuery),
   });
 
@@ -134,7 +166,7 @@ export class RetrievalOrchestrator {
       state.expandedQueries.map(async (query: string) => {
         const embedding = await this.deps.embeddingProvider.embedQuery(query);
         return this.deps.vectorSearchRepository.hybridSearch({
-          companyId: state.companyId,
+          userId: state.userId,
           agentId: state.agentId,
           query,
           embedding,
@@ -163,17 +195,10 @@ export class RetrievalOrchestrator {
 
   private buildContextNode = async (state: RetrievalGraphStateType) => {
     const source = state.retrievedChunks.length > 0 ? state.retrievedChunks : state.probeResults;
-    const contextText = source
-      .slice(0, RETRIEVAL_LIMITS.finalContextChunks)
-      .map(
-        (chunk: RetrievedChunk, index: number) =>
-          `Context ${index + 1} [doc=${chunk.documentId} score=${chunk.combinedScore.toFixed(3)}]\n${chunk.content}`,
-      )
-      .join("\n\n---\n\n");
 
     return {
       retrievedChunks: source,
-      contextText,
+      contextText: buildContextText(source, RETRIEVAL_LIMITS.finalContextChunks),
     };
   };
 
@@ -182,19 +207,7 @@ export class RetrievalOrchestrator {
       return { draftAnswer: "" };
     }
 
-    const prompt = `You are Echo, a customer support retrieval assistant.
-Use only the supplied context. If the context is insufficient, reply exactly with: "I do not have enough context from the uploaded documents to answer that safely."
-
-Conversation:
-${state.conversation.map((turn: { role: string; content: string }) => `${turn.role}: ${turn.content}`).join("\n")}
-
-Question:
-${state.normalizedQuery}
-
-Context:
-${state.contextText}`;
-
-    const draftAnswer = await this.deps.chatModelProvider.generateText(prompt);
+    const draftAnswer = await this.deps.chatModelProvider.generateText(buildGroundedAnswerPrompt(state));
     return { draftAnswer: draftAnswer.trim() };
   };
 
@@ -205,7 +218,7 @@ ${state.contextText}`;
 
   private fallbackDecisionNode = async (state: RetrievalGraphStateType) => ({
     shouldFallback:
-      state.strategy === "FALLBACK" ||
+      state.strategy === "fallback" ||
       state.retrievedChunks.length === 0 ||
       shouldFallback(state.confidence, state.draftAnswer),
   });
@@ -216,9 +229,8 @@ ${state.contextText}`;
   });
 
   private fallbackResponderNode = async () => ({
-    strategy: "FALLBACK" as const,
+    strategy: "fallback" as const,
     shouldFallback: true,
-    finalAnswer:
-      "I could not verify the answer from this agent’s uploaded documents, so I should not guess. Please upload or point me to the relevant document and try again.",
+    finalAnswer: verifiedFallbackAnswer,
   });
 }
