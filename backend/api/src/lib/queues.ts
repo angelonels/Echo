@@ -1,6 +1,12 @@
 import { Queue } from "bullmq";
 import { Redis } from "ioredis";
-import { queueNames } from "@echo/shared";
+import {
+  defaultJobOptions,
+  ingestDocumentJobSchema,
+  queueJobNames,
+  queueNames,
+  type IngestDocumentJob,
+} from "@echo/shared";
 import { env } from "../config/env.js";
 
 export const redisConnection = new Redis(env.REDIS_URL, {
@@ -11,10 +17,6 @@ export const documentsQueue = new Queue(queueNames.documents, {
   connection: redisConnection,
 });
 
-export const analyticsQueue = new Queue(queueNames.analytics, {
-  connection: redisConnection,
-});
-
-export const maintenanceQueue = new Queue(queueNames.maintenance, {
-  connection: redisConnection,
-});
+export async function enqueueDocumentIngestion(payload: IngestDocumentJob) {
+  return documentsQueue.add(queueJobNames.ingestDocument, ingestDocumentJobSchema.parse(payload), defaultJobOptions.ingestion);
+}

@@ -3,8 +3,8 @@ import { AnalyticsRepository } from "./analytics.repository.js"
 export class AnalyticsService {
   constructor(private readonly analyticsRepository: AnalyticsRepository) {}
 
-  async getSummary(agentId: string) {
-    const summary = await this.analyticsRepository.getSummary(agentId)
+  async getSummary(userId: string, agentId: string) {
+    const summary = await this.analyticsRepository.getSummary(userId, agentId)
 
     let positive = 0.2
     let neutral = 0.5
@@ -21,6 +21,7 @@ export class AnalyticsService {
       totalMessages: summary.totalMessages,
       fallbackRate: Number(summary.fallbackRate.toFixed(2)),
       avgConfidence: Number(summary.avgConfidence.toFixed(2)),
+      avgLatencyMs: Number(summary.avgLatencyMs.toFixed(0)),
       sentiment: {
         positive: Number(positive.toFixed(2)),
         neutral: Number(neutral.toFixed(2)),
@@ -29,9 +30,9 @@ export class AnalyticsService {
     }
   }
 
-  async getTopQuestions(agentId: string) {
+  async getTopQuestions(userId: string, agentId: string) {
     return {
-      items: await this.analyticsRepository.getTopQuestions(agentId),
+      items: await this.analyticsRepository.getTopQuestions(userId, agentId),
     }
   }
 }
