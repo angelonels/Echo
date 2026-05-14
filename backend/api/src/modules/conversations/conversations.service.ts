@@ -17,9 +17,9 @@ function getSentimentLabel(avgConfidence: number, messageCount: number) {
 export class ConversationsService {
   constructor(private readonly conversationsRepository: ConversationsRepository) {}
 
-  async listConversations(agentId: string) {
+  async listConversations(userId: string, agentId: string) {
     return {
-      items: (await this.conversationsRepository.listConversations(agentId)).map((conversation) => ({
+      items: (await this.conversationsRepository.listConversations(userId, agentId)).map((conversation) => ({
         id: conversation.id,
         source: conversation.source,
         startedAt: new Date(conversation.startedAt).toISOString(),
@@ -31,8 +31,8 @@ export class ConversationsService {
     }
   }
 
-  async getConversation(agentId: string, conversationId: string) {
-    const conversation = await this.conversationsRepository.getConversation(agentId, conversationId)
+  async getConversation(userId: string, agentId: string, conversationId: string) {
+    const conversation = await this.conversationsRepository.getConversation(userId, agentId, conversationId)
     if (!conversation) {
       throw new AppError(404, "CONVERSATION_NOT_FOUND", "Conversation not found.")
     }

@@ -1,12 +1,9 @@
 import type { Request, Response } from "express"
-import { ZodError, z } from "zod"
-import { isAppError } from "../../lib/errors.js"
+import { z } from "zod"
+import { playgroundChatRequestSchema } from "@echo/shared"
+import { getAuthenticatedUser } from "../../lib/auth.js"
+import { sendErrorResponse } from "../../lib/http.js"
 import { ChatService } from "./chat.service.js"
-
-const playgroundChatSchema = z.object({
-  conversationId: z.string().optional(),
-  message: z.string().min(1),
-})
 
 const widgetChatSchema = z.object({
   agentKey: z.string().min(1),
@@ -22,8 +19,10 @@ export class ChatController {
 
   sendPlaygroundMessage = async (request: Request, response: Response) => {
     try {
-      const input = playgroundChatSchema.parse(request.body)
+      const auth = getAuthenticatedUser(request)
+      const input = playgroundChatRequestSchema.parse(request.body)
       const result = await this.chatService.sendPlaygroundMessage({
+        userId: auth.userId,
         agentId: String(request.params.agentId),
         conversationId: input.conversationId,
         message: input.message,
@@ -31,19 +30,14 @@ export class ChatController {
 
       response.status(200).json({
         conversationId: result.conversationId,
-        message: {
-          id: `msg_${result.conversationId}`,
-          role: "ASSISTANT",
-          content: result.answer,
-          confidenceScore: result.confidenceScore,
-          retrievalStrategy: result.retrievalStrategy,
-          createdAt: new Date().toISOString(),
-        },
-        meta: {
-          retrievalStrategy: result.retrievalStrategy,
-          fallbackUsed: result.fallbackUsed,
-          latencyMs: 0,
-        },
+        messageId: result.messageId,
+        answer: result.answer,
+        responseType: result.responseType,
+        confidence: result.confidence,
+        citations: result.citations,
+        traceId: result.traceId,
+        retrievalStrategy: result.retrievalStrategy,
+        latencyMs: result.latencyMs,
       })
     } catch (error) {
       this.handleError(response, error)
@@ -52,8 +46,10 @@ export class ChatController {
 
   getPlaygroundConversation = async (request: Request, response: Response) => {
     try {
+      const auth = getAuthenticatedUser(request)
       response.status(200).json(
         await this.chatService.getPlaygroundConversation(
+          auth.userId,
           String(request.params.agentId),
           String(request.params.conversationId),
         ),
@@ -66,59 +62,16 @@ export class ChatController {
   sendWidgetMessage = async (request: Request, response: Response) => {
     try {
       const input = widgetChatSchema.parse(request.body)
-      const result = await this.chatService.sendWidgetMessage({
+      await this.chatService.sendWidgetMessage({
         ...input,
         origin: request.headers.origin,
       })
-
-      response.setHeader("Content-Type", "text/event-stream")
-      response.setHeader("Cache-Control", "no-cache")
-      response.setHeader("Connection", "keep-alive")
-
-      for (const token of result.answer.split(/(\s+)/)) {
-        if (!token) {
-          continue
-        }
-
-        response.write(`data: ${JSON.stringify({ text: token })}\n\n`)
-      }
-
-      response.write(`data: ${JSON.stringify({ conversationId: result.conversationId })}\n\n`)
-      response.write("data: [DONE]\n\n")
-      response.end()
     } catch (error) {
       this.handleError(response, error)
     }
   }
 
   private handleError(response: Response, error: unknown) {
-    if (error instanceof ZodError) {
-      response.status(400).json({
-        error: {
-          code: "VALIDATION_ERROR",
-          message: "Request validation failed",
-          details: error.flatten(),
-        },
-      })
-      return
-    }
-
-    if (isAppError(error)) {
-      response.status(error.statusCode).json({
-        error: {
-          code: error.code,
-          message: error.message,
-          details: error.details,
-        },
-      })
-      return
-    }
-
-    response.status(500).json({
-      error: {
-        code: "INTERNAL_SERVER_ERROR",
-        message: "Unexpected server error",
-      },
-    })
+    sendErrorResponse(response, error)
   }
 }
