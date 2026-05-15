@@ -1,0 +1,2 @@
+{"id":"refund_after_20_days","question":"Can I get a refund after 20 days?","expectedBehavior":"Should say standard refunds are only available within 14 days unless an exception applies.","expectedAnswerContains":["14 days","refund"],"shouldFallback":false,"requiredSources":["Refund Policy"],"tags":["policy_boundary","refund"]}
+{"id":"ceo_unknown","question":"Who is the CEO?","shouldFallback":true,"tags":["unanswerable","fallback"]}

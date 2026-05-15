@@ -18,12 +18,18 @@
     "dev:worker": "npm run dev -w @echo/worker",
     "test": "npm run test --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present",
+    "eval:smoke": "tsx tools/evals/run-eval.ts --dataset tools/evals/datasets/support-smoke.jsonl",
+    "eval:full": "tsx tools/evals/run-eval.ts --dataset tools/evals/datasets/support-regression.jsonl",
+    "eval:retrieval": "tsx tools/evals/run-eval.ts --dataset tools/evals/datasets/retrieval-benchmark.jsonl",
+    "eval:generation": "tsx tools/evals/run-eval.ts --dataset tools/evals/datasets/support-regression.jsonl",
+    "eval:fallback": "tsx tools/evals/run-eval.ts --dataset tools/evals/datasets/fallback-cases.jsonl",
     "clean": "find . -type d \\( -name node_modules -o -name dist -o -name .next \\) -prune -exec rm -rf '{}' +"
   },
   "devDependencies": {
     "concurrently": "^9.2.1",
     "es-abstract": "^1.24.2",
     "next": "^16.2.4",
+    "tsx": "^4.21.0",
     "typescript": "^5.9.3"
   }
 }

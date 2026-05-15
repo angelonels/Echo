@@ -1,0 +1,1 @@
+{"id":"retrieval_placeholder_001","question":"What is the refund policy?","expectedBehavior":"Should retrieve the refund policy source.","shouldFallback":false,"requiredSources":["Refund Policy"],"tags":["simple_faq","open_source_benchmark"]}

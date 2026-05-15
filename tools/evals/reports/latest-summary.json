@@ -1,0 +1,55 @@
+{
+  "dataset": "tools/evals/datasets/support-smoke.jsonl",
+  "generatedAt": "2026-05-18T21:15:46.436Z",
+  "cases": 2,
+  "passed": 0,
+  "failed": 2,
+  "results": [
+    {
+      "caseId": "refund_after_20_days",
+      "question": "Can I get a refund after 20 days?",
+      "answer": "",
+      "responseType": "error",
+      "passed": false,
+      "metrics": {
+        "requiredSourceHit": false,
+        "faithfulness": 0,
+        "answerRelevance": 0,
+        "contextPrecision": 0,
+        "contextRecall": 0,
+        "fallbackCorrect": false,
+        "citationCorrect": false,
+        "latencyMs": 0,
+        "estimatedCostUsd": 0
+      },
+      "failureReason": "eval_runner_not_connected_to_retrieval_pipeline",
+      "retrievedSources": [],
+      "warnings": [
+        "EVAL_PIPELINE_NOT_CONNECTED"
+      ]
+    },
+    {
+      "caseId": "ceo_unknown",
+      "question": "Who is the CEO?",
+      "answer": "",
+      "responseType": "fallback",
+      "passed": false,
+      "metrics": {
+        "requiredSourceHit": true,
+        "faithfulness": 0,
+        "answerRelevance": 0,
+        "contextPrecision": 0,
+        "contextRecall": 0,
+        "fallbackCorrect": true,
+        "citationCorrect": false,
+        "latencyMs": 0,
+        "estimatedCostUsd": 0
+      },
+      "failureReason": "eval_runner_not_connected_to_retrieval_pipeline",
+      "retrievedSources": [],
+      "warnings": [
+        "EVAL_PIPELINE_NOT_CONNECTED"
+      ]
+    }
+  ]
+}

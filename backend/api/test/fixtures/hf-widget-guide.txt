@@ -1,0 +1,4 @@
+Hugging Face widget examples show that question answering widgets combine a question with a context passage.
+One example context says that Clara lives in Berkeley.
+Another example context says that Sarah lives in London.
+The same guide also shows text generation prompts that begin with Julien and Merve prompt starters.
